@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebXR - Meditation Pavilion</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #css-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        #fullscreen-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            border: 1px solid white;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 999;
+            font-family: sans-serif;
+            font-size: 14px;
+        }
+
+        #fullscreen-btn:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        #stand-btn {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 30px;
+            background-color: #d32f2f;
+            color: white;
+            border: 2px solid white;
+            border-radius: 25px;
+            cursor: pointer;
+            z-index: 999;
+            font-family: sans-serif;
+            font-size: 16px;
+            font-weight: bold;
+            display: none;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            transition: background 0.3s;
+        }
+
+        #stand-btn:hover {
+            background-color: #f44336;
+        }
+
+        .ui-box {
+            position: absolute;
+            left: 20px;
+            padding: 8px 12px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #ffd700;
+            border: 1px solid #ffd700;
+            border-radius: 5px;
+            z-index: 999;
+            font-family: sans-serif;
+            font-size: 13px;
+        }
+
+        #user-info {
+            top: 20px;
+        }
+
+        #online-users {
+            top: 60px;
+            color: #ff9900;
+            border-color: #ff9900;
+            font-weight: bold;
+        }
+
+        #schedule-status {
+            top: 100px;
+        }
+
+        #seat-status {
+            top: 140px;
+            color: #00ffcc;
+            border-color: #00ffcc;
+        }
+
+        /* ส่วนแสดงเครดิตผู้พัฒนา */
+        #credits {
+            position: absolute;
+            bottom: 15px;
+            right: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: sans-serif;
+            font-size: 12px;
+            text-align: right;
+            z-index: 999;
+            pointer-events: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        #credits a {
+            color: #00ffcc;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        #credits a:hover {
+            text-decoration: underline;
+            color: #ffffff;
+        }
+
+        .gemini-credit {
+            font-size: 10px;
+            color: #aaa;
+            margin-top: 5px;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="user-info" class="ui-box">ชื่อผู้ใช้: กำลังโหลด...</div>
+    <div id="online-users" class="ui-box">ผู้เข้าร่วมขณะนี้: กำลังนับ...</div>
+    <div id="schedule-status" class="ui-box">กำลังตรวจสอบเวลา...</div>
+    <div id="seat-status" class="ui-box">สถานะที่นั่ง: คลิกเลือกเบาะสีน้ำตาลเพื่อจองและนั่ง</div>
+
+    <button id="fullscreen-btn">ขยายเต็มจอ</button>
+    <button id="stand-btn">🚶 ลุกจากที่นั่ง</button>
+
+    <!-- กล่องเครดิต -->
+    <div id="credits">
+        พัฒนาโดย: วินัย ผันอากาศ<br>
+        รับฟังความคิดเห็น: <a href="https://www.facebook.com/winayo1" target="_blank">facebook.com/winayo1</a>
+        <span class="gemini-credit">Assisted by AI: Gemini Pro</span>
+    </div>
+
+    <div id="css-container"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { VRButton } from 'three/addons/webxr/VRButton.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+
+        const randomNum = Math.floor(Math.random() * 900) + 100;
+        const currentUserName = `กัลยาณมิตร${randomNum}`;
+        document.getElementById('user-info').innerText = `ผู้ใช้งาน: ${currentUserName}`;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x2a3b4c);
+
+        const defaultCameraPos = new THREE.Vector3(0, 2.5, 6.0);
+        const defaultTargetPos = new THREE.Vector3(0, 1, -2);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.copy(defaultCameraPos);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
+        document.body.appendChild(VRButton.createButton(renderer));
+
+        const cssRenderer = new CSS3DRenderer();
+        cssRenderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('css-container').appendChild(cssRenderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xfff3e0, 0.6);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffcc80, 1.5, 15);
+        pointLight.position.set(0, 4, -2);
+        scene.add(pointLight);
+
+        // --- ลานปฏิบัติธรรม ---
+        const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x5c4033 });
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(16, 16), floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        scene.add(floor);
+
+        // --- โต๊ะหมู่บูชาและพระพุทธรูป ---
+        const altarGroup = new THREE.Group();
+        altarGroup.position.set(-3.2, 0, -4.5);
+        scene.add(altarGroup);
+
+        const tableHeight = 0.8;
+        const table = new THREE.Mesh(
+            new THREE.BoxGeometry(2.0, tableHeight, 1.0),
+            new THREE.MeshStandardMaterial({ color: 0x4a2e18 })
+        );
+        table.position.set(0, tableHeight / 2, 0);
+        altarGroup.add(table);
+
+        const loader = new GLTFLoader();
+        loader.load('bhuddha.glb', function (gltf) {
+            const buddhaModel = gltf.scene;
+            const box = new THREE.Box3().setFromObject(buddhaModel);
+            const size = box.getSize(new THREE.Vector3());
+            const scaleFactor = 1.1 / size.y;
+            buddhaModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            buddhaModel.rotation.y = Math.PI - 0.5;
+            const boxUpdated = new THREE.Box3().setFromObject(buddhaModel);
+            const center = boxUpdated.getCenter(new THREE.Vector3());
+            buddhaModel.position.set(-center.x, tableHeight - boxUpdated.min.y, -center.z);
+            altarGroup.add(buddhaModel);
+        });
+
+        // --- จอทีวี YouTube ---
+        const tvGroup = new THREE.Group();
+        tvGroup.position.set(1.5, 2.9, -4.8);
+        scene.add(tvGroup);
+
+        const tvFrame = new THREE.Mesh(
+            new THREE.BoxGeometry(7.2, 4.2, 0.2),
+            new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2 })
+        );
+        tvGroup.add(tvFrame);
+
+        const div = document.createElement('div');
+        div.style.width = '700px';
+        div.style.height = '400px';
+        div.style.backgroundColor = '#000';
+
+        const standbyUrl = "https://www.youtube.com/embed/ST6FSkpYrGs";
+        const morningUrl = "https://www.youtube.com/embed/OnwLu4x0WOA";
+        const eveningUrl = "https://www.youtube.com/embed/pPZ20jq8UaU";
+
+        const now = new Date();
+        const curMins = now.getHours() * 60 + now.getMinutes();
+        let activeVideoUrl = standbyUrl;
+        let modeText = "โหมด: สแตนด์บาย (ช่องวัดท่าซุง)";
+
+        if (curMins >= 240 && curMins <= 330) {
+            activeVideoUrl = morningUrl + "?autoplay=1";
+            modeText = "โหมด: ทำวัตรเช้า (04:00 - 05:30)";
+        } else if (curMins >= 1080 && curMins <= 1170) {
+            activeVideoUrl = eveningUrl + "?autoplay=1";
+            modeText = "โหมด: ทำวัตรเย็น (18:00 - 19:30)";
+        }
+
+        document.getElementById('schedule-status').innerText = modeText;
+        div.innerHTML = `<iframe width="700" height="400" src="${activeVideoUrl}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="border-radius: 4px;"></iframe>`;
+
+        const cssObject = new CSS3DObject(div);
+        cssObject.position.set(0, 0, 0.12);
+        cssObject.scale.set(0.01, 0.01, 0.01);
+        tvGroup.add(cssObject);
+
+        // --- สร้างเบาะรองนั่งสมาธิและบอท ---
+        const cushionGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 32);
+        const rows = 5, colsPerSide = 3, spacingX = 1.2, spacingZ = 1.1, aisleWidth = 1.0;
+        const seatingGroup = new THREE.Group();
+        seatingGroup.position.set(0, 0.05, -1.5);
+        scene.add(seatingGroup);
+
+        const cushionsList = [];
+        let mySelectedCushion = null;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < (colsPerSide * 2); c++) {
+                let xPos = (c < colsPerSide) ? (c - colsPerSide) * spacingX - (aisleWidth / 2) : (c - colsPerSide - 1) * spacingX + spacingX + (aisleWidth / 2);
+                let zPos = r * spacingZ;
+                const cushion = new THREE.Mesh(cushionGeometry, new THREE.MeshStandardMaterial({ color: 0x3b2219 }));
+                cushion.position.set(xPos, 0, zPos);
+                cushion.userData = { row: r + 1, col: c + 1, isOccupied: false, isMine: false, occupantName: "" };
+                seatingGroup.add(cushion);
+                cushionsList.push(cushion);
+            }
+        }
+
+        const botCount = 4;
+        const availableIndices = [...Array(cushionsList.length).keys()];
+        for (let i = 0; i < botCount; i++) {
+            if (availableIndices.length === 0) break;
+            const cushionIdx = availableIndices.splice(Math.floor(Math.random() * availableIndices.length), 1)[0];
+            const botCushion = cushionsList[cushionIdx];
+            botCushion.userData.isOccupied = true;
+            botCushion.userData.occupantName = `กัลยาณมิตร${Math.floor(Math.random() * 900 + 100)} (AI)`;
+            botCushion.material.color.setHex(0x8c5830);
+        }
+        document.getElementById('online-users').innerText = `ผู้เข้าร่วมขณะนี้: ${botCount + 1} คน`;
+
+        // --- ตัวแปรสำหรับระบบกล้องสมูท ---
+        let isSeated = false;
+        let isTransitioning = false;
+        const targetCamPos = new THREE.Vector3();
+        const targetLookAt = new THREE.Vector3();
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.maxPolarAngle = Math.PI / 2 + 0.1;
+        controls.target.copy(defaultTargetPos);
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('click', (event) => {
+            if (event.target.tagName !== 'CANVAS') return;
+            if (isSeated || isTransitioning) return;
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(cushionsList);
+
+            if (intersects.length > 0) {
+                const clickedCushion = intersects[0].object;
+
+                if (clickedCushion.userData.isOccupied) {
+                    alert(`ที่นั่งนี้มีผู้ใช้งานแล้ว (${clickedCushion.userData.occupantName}) กรุณาเลือกที่นั่งอื่นครับ`);
+                    return;
+                }
+
+                clickedCushion.userData.isOccupied = true;
+                clickedCushion.userData.isMine = true;
+                clickedCushion.userData.occupantName = currentUserName;
+                clickedCushion.material.color.setHex(0x00ffcc);
+                mySelectedCushion = clickedCushion;
+
+                document.getElementById('seat-status').innerText = `สถานะที่นั่ง: นั่งสมาธิ ณ แถว ${clickedCushion.userData.row}, ตัวที่ ${clickedCushion.userData.col}`;
+                document.getElementById('stand-btn').style.display = 'block';
+
+                const cushionWorldPos = new THREE.Vector3();
+                clickedCushion.getWorldPosition(cushionWorldPos);
+
+                targetCamPos.set(cushionWorldPos.x, 1.0, cushionWorldPos.z);
+
+                const tvPos = new THREE.Vector3(1.5, 2.9, -4.8);
+                const dir = tvPos.clone().sub(targetCamPos).normalize();
+                targetLookAt.copy(targetCamPos).add(dir.multiplyScalar(0.01));
+
+                isSeated = true;
+                isTransitioning = true;
+                controls.enabled = false;
+            }
+        });
+
+        document.getElementById('stand-btn').addEventListener('click', () => {
+            if (mySelectedCushion) {
+                mySelectedCushion.userData.isMine = false;
+                mySelectedCushion.userData.isOccupied = false;
+                mySelectedCushion.userData.occupantName = "";
+                mySelectedCushion.material.color.setHex(0x3b2219);
+                mySelectedCushion = null;
+            }
+
+            document.getElementById('seat-status').innerText = "สถานะที่นั่ง: ลุกจากที่นั่งแล้ว (อิสระ)";
+            document.getElementById('stand-btn').style.display = 'none';
+
+            isSeated = false;
+            isTransitioning = true;
+            controls.enabled = false;
+
+            targetCamPos.copy(defaultCameraPos);
+            targetLookAt.copy(defaultTargetPos);
+        });
+
+        function animate() {
+            if (isTransitioning) {
+                camera.position.lerp(targetCamPos, 0.05);
+                controls.target.lerp(targetLookAt, 0.05);
+
+                if (camera.position.distanceTo(targetCamPos) < 0.05) {
+                    isTransitioning = false;
+                    camera.position.copy(targetCamPos);
+                    controls.target.copy(targetLookAt);
+                    controls.enabled = true;
+
+                    if (isSeated) {
+                        controls.enableZoom = false;
+                        controls.enablePan = false;
+                        controls.rotateSpeed = -0.7;
+
+                        controls.minPolarAngle = Math.PI / 2 - 0.4;
+                        controls.maxPolarAngle = Math.PI / 2 + 0.3;
+
+                        const angle = Math.atan2(targetCamPos.x - targetLookAt.x, targetCamPos.z - targetLookAt.z);
+                        const range = (110 * Math.PI) / 180;
+                        controls.minAzimuthAngle = angle - range;
+                        controls.maxAzimuthAngle = angle + range;
+                    } else {
+                        controls.enableZoom = true;
+                        controls.enablePan = true;
+                        controls.rotateSpeed = 1.0;
+                        controls.minPolarAngle = 0;
+                        controls.maxPolarAngle = Math.PI / 2 + 0.1;
+                        controls.minAzimuthAngle = -Infinity;
+                        controls.maxAzimuthAngle = Infinity;
+                    }
+                }
+            } else if (controls.enabled) {
+                controls.update();
+            }
+
+            renderer.render(scene, camera);
+            cssRenderer.render(scene, camera);
+        }
+        renderer.setAnimationLoop(animate);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            cssRenderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        const fsButton = document.getElementById('fullscreen-btn');
+        fsButton.addEventListener('click', () => {
+            if (!document.fullscreenElement) { document.body.requestFullscreen(); fsButton.innerText = "ย่อหน้าจอ"; }
+            else { document.exitFullscreen(); fsButton.innerText = "ขยายเต็มจอ"; }
+        });
+    </script>
+</body>
+
+</html>
