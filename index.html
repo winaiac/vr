@@ -232,7 +232,7 @@
             const size = box.getSize(new THREE.Vector3());
             const scaleFactor = 1.1 / size.y;
             buddhaModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
-            buddhaModel.rotation.y = Math.PI - 0.5;
+            buddhaModel.rotation.y = 0;
             const boxUpdated = new THREE.Box3().setFromObject(buddhaModel);
             const center = boxUpdated.getCenter(new THREE.Vector3());
             buddhaModel.position.set(-center.x, tableHeight - boxUpdated.min.y, -center.z);
