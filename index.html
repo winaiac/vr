@@ -213,34 +213,8 @@
         // ==========================================
         // ข้อมูลการตั้งค่า
         // ==========================================
-        const appConfig = {
-            youtube: {
-                standbyUrl: "https://www.youtube.com/embed/ST6FSkpYrGs",
-                morningUrl: "https://www.youtube.com/embed/OnwLu4x0WOA",
-                eveningUrl: "https://www.youtube.com/embed/pPZ20jq8UaU",
-                morningStart: 240,   // 04:00 น.
-                morningEnd: 330,     // 05:30 น.
-                eveningStart: 1080,  // 18:00 น.
-                eveningEnd: 1170     // 19:30 น.
-            },
-            prBoard: {
-                title: "📢 กระดานสะพานบุญ",
-                scheduleTitle: "📺 ตารางออกอากาศ (เสียงสวดมนต์)",
-                scheduleLines: [
-                    "• ทำวัตรเช้า  : 04:00 - 05:30 น.",
-                    "• ทำวัตรเย็น  : 18:00 - 19:30 น.",
-                    "• นอกเวลา  : เสียงสแตนด์บาย (วัดท่าซุง)"
-                ],
-                contactTitle: "📌 พื้นที่ฝากข่าวบอกบุญ",
-                contactLines: [
-                    "หากกัลยาณมิตรท่านใดมีความประสงค์",
-                    "ต้องการประชาสัมพันธ์โครงการเพื่อพระพุทธศาสนา",
-                    "สามารถติดต่อแอดมินเพื่อขอลงประกาศได้ ฟรี!"
-                ],
-                contactBoxTitle: "💬 ติดต่อแอดมิน (Line ID / เบอร์โทร)",
-                contactPhone: "0926533228"
-            }
-        };
+        // นำเข้าไฟล์ตั้งค่า (ดึงวิดีโอ, ข้อความบอร์ด, และปฏิทินจันทรคติ)
+        import { appConfig } from './config.js';
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
         import { getDatabase, ref, get, update, onValue, onDisconnect, increment } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
@@ -961,44 +935,56 @@
             const dateStr = now.toLocaleDateString('th-TH', options);
             document.getElementById('date-display').innerText = dateStr;
 
-            const cycle = 29.530588;
-            const refDate = new Date(2026, 1, 17, 0, 0, 0).getTime();
-            const refMonth = 3;
+            // ดึงฐานข้อมูลวันเริ่มต้นเดือนทางจันทรคติมาจาก config.js
+            const realThaiCalendar = appConfig.thaiCalendar;
 
-            const diff = now.getTime() - refDate;
-            const daysDiff = diff / (1000 * 60 * 60 * 24);
-
-            let lunarCycles = Math.floor(daysDiff / cycle);
-            let moonAge = daysDiff - (lunarCycles * cycle);
-
-            let currentLunarMonth = (refMonth + lunarCycles) % 12;
-            if (currentLunarMonth <= 0) currentLunarMonth += 12;
-
-            let phase = "";
-            let day = 1;
-            let isHolyDay = false;
-            let isWaxing = true;
-
-            if (moonAge < 14.765) {
-                day = Math.floor(moonAge) + 1;
-                if (day > 15) day = 15;
-                phase = `ขึ้น ${day} ค่ำ`;
-                if (day === 8 || day === 15) isHolyDay = true;
-                isWaxing = true;
-            } else {
-                day = Math.floor(moonAge - 14.765) + 1;
-                if (day > 15) day = 15;
-                phase = `แรม ${day} ค่ำ`;
-                if (day === 8 || day === 15 || (day === 14 && moonAge > 28.5)) isHolyDay = true;
-                isWaxing = false;
+            // ค้นหาเดือนปัจจุบันจากฐานข้อมูล
+            let currentCycle = realThaiCalendar[0];
+            for (let i = 0; i < realThaiCalendar.length; i++) {
+                const cycleDate = new Date(realThaiCalendar[i].d);
+                cycleDate.setHours(0, 0, 0, 0);
+                if (now >= cycleDate) {
+                    currentCycle = realThaiCalendar[i];
+                } else {
+                    break;
+                }
             }
 
+            const cycleStartDate = new Date(currentCycle.d);
+            cycleStartDate.setHours(0, 0, 0, 0);
+            
+            // นับจำนวนวันที่ผ่านมาจากวันขึ้น 1 ค่ำ
+            const diffTime = Math.abs(now - cycleStartDate);
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+            let phase = "";
+            let day = diffDays;
+            let isWaxing = true;
+            let isHolyDay = false;
+
+            if (day <= 15) {
+                // ช่วงข้างขึ้น
+                phase = `ขึ้น ${day} ค่ำ`;
+                isWaxing = true;
+                if (day === 8 || day === 15) isHolyDay = true;
+            } else {
+                // ช่วงข้างแรม
+                day = day - 15;
+                phase = `แรม ${day} ค่ำ`;
+                isWaxing = false;
+                
+                // เช็กวันพระข้างแรม (แรม 8 ค่ำ และ แรม 14/15 ค่ำ ตามเดือนคู่-คี่)
+                if (day === 8 || day === (currentCycle.days - 15)) isHolyDay = true;
+            }
+
+            let currentLunarMonth = currentCycle.m;
             let monthName = currentLunarMonth.toString();
             if (currentLunarMonth === 1) monthName = "อ้าย (๑)";
             if (currentLunarMonth === 2) monthName = "ยี่ (๒)";
 
             document.getElementById('lunar-display').innerText = `ตรงกับ: ${phase} เดือน ${monthName}`;
 
+            // ตรวจสอบวันสำคัญทางพุทธศาสนา
             let importantDay = "";
             if (isWaxing && day === 15) {
                 if (currentLunarMonth === 3) importantDay = "วันมาฆบูชา";
@@ -1010,6 +996,7 @@
                 if (currentLunarMonth === 8) importantDay = "วันเข้าพรรษา";
             }
 
+            // แสดงผลป้ายแจ้งเตือน
             const holyDayEl = document.getElementById('holy-day-display');
             if (importantDay !== "") {
                 holyDayEl.innerText = `🌟 ${importantDay}`;
