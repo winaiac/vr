@@ -40,7 +40,8 @@
 
         #fullscreen-btn {
             position: absolute;
-            top: var(--safe-top);
+            /* เปลี่ยนจาก top เป็น bottom และเว้นระยะจากขอบล่าง 95px เพื่อไม่ให้ทับเครดิต */
+            bottom: 95px;
             right: var(--safe-side);
             padding: clamp(8px, 1.5vh, 10px) clamp(10px, 2vw, 15px);
             background-color: rgba(0, 0, 0, 0.6);
@@ -117,6 +118,16 @@
                 padding: 10px 20px;
                 font-size: 14px;
             }
+
+            /* ดันปุ่มขยายเต็มจอในมือถือขึ้นมาอีกนิด ป้องกันการซ้อนทับ */
+            #fullscreen-btn {
+                bottom: 110px;
+            }
+
+            /* ปรับกล่องเครดิตให้แสดงผลบนมือถือได้ดีขึ้น */
+            #credits {
+                max-width: 90vw;
+            }
         }
     </style>
 </head>
@@ -126,9 +137,6 @@
     <!-- 1. ซ่อนกล่องสถานะเดิม (เพื่อให้ระบบคลิกที่นั่งเดิมยังทำงานได้โดยไม่พัง) -->
     <!-- ========================================== -->
     <div id="user-info" style="display: none;">ชื่อผู้ใช้: กำลังโหลด...</div>
-    <!-- กล่องข้อมูล Firebase (ซ่อนไว้รอสลับ) -->
-    <div id="global-users" style="display: none;">🌐 กัลยาณมิตรทั้งหมด: กำลังโหลด...</div>
-    <div id="room-status" style="display: none;">🏠 ท่านอยู่ห้องที่: กำลังโหลด...</div>
     <div id="schedule-status" style="display: none;">กำลังตรวจสอบเวลา...</div>
     <div id="seat-status" style="display: none;">สถานะ: คลิกเลือกเบาะ หรือคลิกจุดสีทองหน้าบอร์ด</div>
 
@@ -144,7 +152,13 @@
             ผู้ใช้งาน: กำลังโหลด...
         </div>
 
-        <!-- บรรทัด 2: ข้อมูลที่วนลูป (ผู้เข้าร่วม / โหมด / สถานะ) -->
+        <!-- บรรทัด 2: ข้อมูลห้องและจำนวนคน (คงที่ แสดงตลอดเวลา) -->
+        <div id="server-status"
+            style="border: 1px solid #4CAF50; border-radius: 4px; padding: 8px 12px; background: rgba(20, 10, 5, 0.85); color: #4CAF50; font-family: 'Sarabun', sans-serif; font-weight: bold; width: fit-content; pointer-events: auto; font-size: 14px;">
+            กำลังเชื่อมต่อเซิร์ฟเวอร์...
+        </div>
+
+        <!-- บรรทัด 3: ข้อมูลที่วนลูป (โหมด / สถานะ) -->
         <div id="rotating-status"
             style="border: 1px solid #00ffcc; border-radius: 4px; padding: 8px 12px; background: rgba(20, 10, 5, 0.85); color: #00ffcc; font-family: 'Sarabun', sans-serif; font-weight: bold; width: fit-content; transition: opacity 0.4s ease-in-out; pointer-events: auto; font-size: 14px;">
             กำลังโหลดข้อมูล...
@@ -196,8 +210,37 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 
-        // นำเข้าไฟล์ตั้งค่าของเรา
-        import { appConfig } from './config.js';
+        // ==========================================
+        // ข้อมูลการตั้งค่า
+        // ==========================================
+        const appConfig = {
+            youtube: {
+                standbyUrl: "https://www.youtube.com/embed/ST6FSkpYrGs",
+                morningUrl: "https://www.youtube.com/embed/OnwLu4x0WOA",
+                eveningUrl: "https://www.youtube.com/embed/pPZ20jq8UaU",
+                morningStart: 240,   // 04:00 น.
+                morningEnd: 330,     // 05:30 น.
+                eveningStart: 1080,  // 18:00 น.
+                eveningEnd: 1170     // 19:30 น.
+            },
+            prBoard: {
+                title: "📢 กระดานสะพานบุญ",
+                scheduleTitle: "📺 ตารางออกอากาศ (เสียงสวดมนต์)",
+                scheduleLines: [
+                    "• ทำวัตรเช้า  : 04:00 - 05:30 น.",
+                    "• ทำวัตรเย็น  : 18:00 - 19:30 น.",
+                    "• นอกเวลา  : เสียงสแตนด์บาย (วัดท่าซุง)"
+                ],
+                contactTitle: "📌 พื้นที่ฝากข่าวบอกบุญ",
+                contactLines: [
+                    "หากกัลยาณมิตรท่านใดมีความประสงค์",
+                    "ต้องการประชาสัมพันธ์โครงการเพื่อพระพุทธศาสนา",
+                    "สามารถติดต่อแอดมินเพื่อขอลงประกาศได้ ฟรี!"
+                ],
+                contactBoxTitle: "💬 ติดต่อแอดมิน (Line ID / เบอร์โทร)",
+                contactPhone: "0926533228"
+            }
+        };
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
         import { getDatabase, ref, get, update, onValue, onDisconnect, increment } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
@@ -221,6 +264,20 @@
         const ROOM_CAPACITY = 30; // ตั้งค่าจำนวนคนสูงสุดต่อห้อง
         let myRoomId = null;
 
+        // ตัวแปรสำหรับแสดงผล UI จำนวนคนแบบเรียลไทม์
+        let globalUsersCount = 1;
+        let roomUsersCount = 1;
+        let currentRoomNum = "1";
+        let localBotCount = 0; // เพิ่มตัวแปรเก็บจำนวนบอทในเครื่อง
+
+        function updateServerStatusUI() {
+            // นำยอดคนจริงจาก Firebase มาบวกกับจำนวนบอท AI
+            const totalGlobal = globalUsersCount + localBotCount;
+            const totalRoom = roomUsersCount + localBotCount;
+
+            document.getElementById('server-status').innerText = `🌐 รวมทุกห้อง: ${totalGlobal} คน | 🏠 ห้องที่ ${currentRoomNum} (${totalRoom}/${ROOM_CAPACITY} คน)`;
+        }
+
         async function joinMeditationRoom() {
             const roomsRef = ref(db, 'rooms');
             const snapshot = await get(roomsRef);
@@ -229,7 +286,6 @@
             let targetRoom = null;
             let maxRoomIndex = 0;
 
-            // ค้นหาห้องที่คนยังไม่เต็ม
             for (const [roomId, roomData] of Object.entries(rooms)) {
                 const roomNum = parseInt(roomId.split('_')[1]);
                 if (roomNum > maxRoomIndex) maxRoomIndex = roomNum;
@@ -240,35 +296,36 @@
                 }
             }
 
-            // ถ้าเต็มทุกห้อง ให้สร้างห้องใหม่ต่อท้าย
             if (!targetRoom) {
                 targetRoom = `room_${maxRoomIndex + 1}`;
             }
             myRoomId = targetRoom;
 
-            // ตั้งค่าให้ลบคนออกแบบ "อัตโนมัติ" เมื่อผู้ใช้ปิดหน้าเว็บ
+            // ตรวจสอบห้อง และเรียกสร้างบอทเฉพาะห้องที่ 1 เท่านั้น
+            if (myRoomId === 'room_1') {
+                spawnAIBots();
+            }
+
             const myRoomCountRef = ref(db, `rooms/${myRoomId}/count`);
             const globalCountRef = ref(db, `global_users`);
 
             onDisconnect(myRoomCountRef).set(increment(-1));
             onDisconnect(globalCountRef).set(increment(-1));
 
-            // อัปเดตข้อมูลเข้าไปในฐานข้อมูลว่ามีคนเข้าห้องเพิ่ม 1 คน
             update(ref(db), {
                 [`rooms/${myRoomId}/count`]: increment(1),
                 [`global_users`]: increment(1)
             });
 
-            // ดึงข้อมูลมายิงขึ้นจอ UI แบบ Real-time
             onValue(globalCountRef, (snap) => {
-                const count = snap.val() || 1;
-                document.getElementById('global-users').innerText = `🌐 กัลยาณมิตรทั้งหมด: ${count} คน`;
+                globalUsersCount = snap.val() || 1;
+                updateServerStatusUI();
             });
 
             onValue(myRoomCountRef, (snap) => {
-                const count = snap.val() || 1;
-                const roomNum = myRoomId.split('_')[1];
-                document.getElementById('room-status').innerText = `🏠 ห้องที่: ${roomNum} (จำนวน ${count}/${ROOM_CAPACITY} คน)`;
+                roomUsersCount = snap.val() || 1;
+                currentRoomNum = myRoomId.split('_')[1];
+                updateServerStatusUI();
             });
         }
         joinMeditationRoom();
@@ -288,7 +345,6 @@
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.copy(defaultCameraPos);
 
-        // สร้างฐาน (Rig) ครอบกล้องไว้ เพื่อใช้ย้ายพิกัดผู้เล่นในโลก VR
         const vrCameraRig = new THREE.Group();
         vrCameraRig.add(camera);
         scene.add(vrCameraRig);
@@ -299,7 +355,6 @@
         document.body.appendChild(renderer.domElement);
         document.body.appendChild(VRButton.createButton(renderer));
 
-        // โค้ด Sync ตำแหน่งกล้องปกติ เข้าสู่โลก VR แบบ Seamless
         renderer.xr.addEventListener('sessionstart', () => {
             const currentX = camera.position.x;
             const currentZ = camera.position.z;
@@ -359,7 +414,7 @@
             altarGroup.add(buddhaModel);
         });
 
-        // --- จอทีวี YouTube และข้อความแทนที่สำหรับโหมด VR ---
+        // --- จอทีวี YouTube ---
         const tvGroup = new THREE.Group();
         tvGroup.position.set(1.5, 2.9, -4.8);
         scene.add(tvGroup);
@@ -427,7 +482,6 @@
         div.style.height = '400px';
         div.style.backgroundColor = '#000';
 
-        // ดึง URL จากไฟล์ config.js
         const standbyUrl = appConfig.youtube.standbyUrl;
         const morningUrl = appConfig.youtube.morningUrl;
         const eveningUrl = appConfig.youtube.eveningUrl;
@@ -437,7 +491,6 @@
         let activeVideoUrl = standbyUrl;
         let modeText = "โหมด: สแตนด์บาย (ช่องวัดท่าซุง)";
 
-        // ดึงช่วงเวลาจากไฟล์ config.js
         if (curMins >= appConfig.youtube.morningStart && curMins <= appConfig.youtube.morningEnd) {
             activeVideoUrl = morningUrl + "?autoplay=1";
             modeText = "โหมด: ทำวัตรเช้า (04:00 - 05:30)";
@@ -454,7 +507,7 @@
         cssObject.scale.set(0.01, 0.01, 0.01);
         tvGroup.add(cssObject);
 
-        // --- สร้างบอร์ดฝั่งซ้าย (ประชาสัมพันธ์) ---
+        // --- สร้างบอร์ดฝั่งซ้าย ---
         const prGroup = new THREE.Group();
         prGroup.position.set(-7.5, 1.675, 0.0);
         prGroup.rotation.y = Math.PI / 2;
@@ -486,9 +539,6 @@
             }
         }
 
-        // ==========================================
-        // วาดข้อความบอร์ดฝั่งซ้าย (ดึงข้อมูลจาก config.js)
-        // ==========================================
         prCtx.fillStyle = '#ffd700';
         prCtx.font = 'bold 32px Sarabun, sans-serif';
         prCtx.textAlign = 'center';
@@ -501,7 +551,6 @@
         prCtx.lineWidth = 2;
         prCtx.stroke();
 
-        // --- ส่วนที่ 1: ตารางออกอากาศ ---
         prCtx.fillStyle = '#00ffcc';
         prCtx.font = 'bold 24px Sarabun, sans-serif';
         prCtx.fillText(appConfig.prBoard.scheduleTitle, 250, 135);
@@ -509,12 +558,10 @@
         prCtx.textAlign = 'left';
         prCtx.fillStyle = '#ffffff';
         prCtx.font = '22px Sarabun, sans-serif';
-        // วนลูปข้อความตาราง
         appConfig.prBoard.scheduleLines.forEach((line, index) => {
             prCtx.fillText(line, 80, 180 + (index * 40));
         });
 
-        // --- เส้นคั่น ---
         prCtx.beginPath();
         prCtx.moveTo(150, 310);
         prCtx.lineTo(350, 310);
@@ -522,7 +569,6 @@
         prCtx.lineWidth = 1;
         prCtx.stroke();
 
-        // --- ส่วนที่ 2: ติดต่อประชาสัมพันธ์ ---
         prCtx.textAlign = 'center';
         prCtx.fillStyle = '#ffeb3b';
         prCtx.font = 'bold 24px Sarabun, sans-serif';
@@ -530,12 +576,10 @@
 
         prCtx.fillStyle = '#ffffff';
         prCtx.font = '18px Sarabun, sans-serif';
-        // วนลูปข้อความประชาสัมพันธ์
         appConfig.prBoard.contactLines.forEach((line, index) => {
             prCtx.fillText(line, 250, 420 + (index * 30));
         });
 
-        // กล่องช่องทางติดต่อแอดมิน
         prCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
         if (prCtx.roundRect) {
             prCtx.beginPath();
@@ -556,9 +600,6 @@
         prCtx.font = 'bold 28px Sarabun, sans-serif';
         prCtx.fillText(appConfig.prBoard.contactPhone, 250, 595);
 
-        // ==========================================
-        // สิ้นสุดการวาดข้อความ นำไปสร้างเป็น Texture ตามเดิม
-        // ==========================================
         const prTexture = new THREE.CanvasTexture(prCanvas);
         prTexture.colorSpace = THREE.SRGBColorSpace;
         const prPlane = new THREE.Mesh(
@@ -579,7 +620,7 @@
         };
         scene.add(prHotspot);
 
-        // --- สร้างบอร์ดฝั่งขวา (นักพัฒนา) ---
+        // --- สร้างบอร์ดฝั่งขวา ---
         const devGroup = new THREE.Group();
         devGroup.position.set(7.5, 1.675, 0.0);
         devGroup.rotation.y = -Math.PI / 2;
@@ -751,22 +792,29 @@
             return group;
         }
 
-        // สุ่มจำนวนบอทกัลยาณมิตรตั้งแต่ 3 ถึง 6 ตัว
-        const botCount = Math.floor(Math.random() * 4) + 3;
-        const availableIndices = [...Array(cushionsList.length).keys()];
-        for (let i = 0; i < botCount; i++) {
-            if (availableIndices.length === 0) break;
-            const cushionIdx = availableIndices.splice(Math.floor(Math.random() * availableIndices.length), 1)[0];
-            const botCushion = cushionsList[cushionIdx];
-            botCushion.userData.isOccupied = true;
-            botCushion.userData.occupantName = `กัลยาณมิตร${Math.floor(Math.random() * 900 + 100)} (AI)`;
-            botCushion.material.color.setHex(0x2a1610);
+        // ฟังก์ชันสร้างบอท 3-5 ตัว (จะถูกเรียกใช้เฉพาะคนที่อยู่ room_1 เท่านั้น)
+        function spawnAIBots() {
+            const botCount = Math.floor(Math.random() * 3) + 3; // สุ่มเลข 3 ถึง 5
 
-            const avatar = createMeditatorAvatar();
-            avatar.position.set(botCushion.position.x, 0.05, botCushion.position.z);
-            seatingGroup.add(avatar);
+            localBotCount = botCount; // บันทึกจำนวนบอทลงในตัวแปรส่วนกลาง
+            updateServerStatusUI(); // สั่งให้อัปเดต UI บนหน้าจอทันที
+
+            const availableIndices = [...Array(cushionsList.length).keys()];
+
+            for (let i = 0; i < botCount; i++) {
+                if (availableIndices.length === 0) break;
+                const cushionIdx = availableIndices.splice(Math.floor(Math.random() * availableIndices.length), 1)[0];
+                const botCushion = cushionsList[cushionIdx];
+
+                botCushion.userData.isOccupied = true;
+                botCushion.userData.occupantName = `กัลยาณมิตร${Math.floor(Math.random() * 900 + 100)} (AI)`;
+                botCushion.material.color.setHex(0x2a1610);
+
+                const avatar = createMeditatorAvatar();
+                avatar.position.set(botCushion.position.x, 0.05, botCushion.position.z);
+                seatingGroup.add(avatar);
+            }
         }
-        document.getElementById('online-users').innerText = `ผู้เข้าร่วมขณะนี้: ${botCount + 1} คน`;
 
         const interactables = [...cushionsList, prHotspot, devHotspot, lineHitbox];
 
@@ -879,11 +927,12 @@
         });
 
         // =========================================================
-        // โค้ดระบบ UI วนลูปบรรทัดที่ 2
+        // โค้ดระบบ UI วนลูปบรรทัดที่ 3
         // =========================================================
         const rotatingEl = document.getElementById('rotating-status');
-        const hiddenEls = ['global-users', 'room-status', 'schedule-status', 'seat-status'];
-        const colors = ['#ffffff', '#ff9800', '#ffd700', '#00ffcc'];
+        // เอาเลขห้องและจำนวนคนออกจากการวนลูป ให้เหลือแค่ตารางเวลาและสถานะที่นั่ง
+        const hiddenEls = ['schedule-status', 'seat-status'];
+        const colors = ['#ffd700', '#00ffcc'];
         let currentStatusIndex = 0;
 
         setInterval(() => {
@@ -901,21 +950,17 @@
         }, 3500);
 
         // =========================================================
-        // โค้ดระบบนาฬิกาและปฏิทินจันทรคติไทย (อัปเกรดบอกเดือนและวันสำคัญ)
+        // โค้ดระบบนาฬิกาและปฏิทินจันทรคติไทย
         // =========================================================
         function updateDateTime() {
             const now = new Date();
-            // 1. อัปเดตเวลา
             const timeStr = now.toLocaleTimeString('th-TH', { hour12: false });
             document.getElementById('time-display').innerText = timeStr;
 
-            // 2. อัปเดตวันที่สากล
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             const dateStr = now.toLocaleDateString('th-TH', options);
             document.getElementById('date-display').innerText = dateStr;
 
-            // 3. คำนวณดิถีจันทร์และเดือนทางจันทรคติไทย
-            // ใช้วันขึ้น 1 ค่ำ เดือน 3 ของปี 2026 (17 ก.พ. 2026) เป็นจุดอ้างอิงเพื่อความแม่นยำ
             const cycle = 29.530588;
             const refDate = new Date(2026, 1, 17, 0, 0, 0).getTime();
             const refMonth = 3;
@@ -926,16 +971,14 @@
             let lunarCycles = Math.floor(daysDiff / cycle);
             let moonAge = daysDiff - (lunarCycles * cycle);
 
-            // คำนวณเดือน (1 ถึง 12)
             let currentLunarMonth = (refMonth + lunarCycles) % 12;
             if (currentLunarMonth <= 0) currentLunarMonth += 12;
 
             let phase = "";
             let day = 1;
             let isHolyDay = false;
-            let isWaxing = true; // ตรวจสอบว่าเป็นข้างขึ้นหรือไม่
+            let isWaxing = true;
 
-            // คัดแยกข้างขึ้น - ข้างแรม
             if (moonAge < 14.765) {
                 day = Math.floor(moonAge) + 1;
                 if (day > 15) day = 15;
@@ -950,30 +993,23 @@
                 isWaxing = false;
             }
 
-            // แปลงชื่อเดือน 1 และ 2 เป็นชื่อเรียกตามประเพณีไทย
             let monthName = currentLunarMonth.toString();
             if (currentLunarMonth === 1) monthName = "อ้าย (๑)";
             if (currentLunarMonth === 2) monthName = "ยี่ (๒)";
 
-            // แสดงผลลัพธ์ เช่น "ตรงกับ: ขึ้น 15 ค่ำ เดือน 6"
             document.getElementById('lunar-display').innerText = `ตรงกับ: ${phase} เดือน ${monthName}`;
 
-            // 4. ตรวจสอบวันสำคัญทางพุทธศาสนาแบบไดนามิก (ผูกกับเดือนจันทรคติ)
             let importantDay = "";
-
-            // ตรวจสอบวันสำคัญที่ตรงกับ วันเพ็ญ (ขึ้น 15 ค่ำ)
             if (isWaxing && day === 15) {
                 if (currentLunarMonth === 3) importantDay = "วันมาฆบูชา";
                 else if (currentLunarMonth === 6) importantDay = "วันวิสาขบูชา";
                 else if (currentLunarMonth === 8) importantDay = "วันอาสาฬหบูชา";
                 else if (currentLunarMonth === 11) importantDay = "วันออกพรรษา";
             }
-            // ตรวจสอบวันสำคัญที่ตรงกับ วันแรม 1 ค่ำ
             else if (!isWaxing && day === 1) {
                 if (currentLunarMonth === 8) importantDay = "วันเข้าพรรษา";
             }
 
-            // 5. อัปเดตป้ายแจ้งเตือนวันสำคัญ
             const holyDayEl = document.getElementById('holy-day-display');
             if (importantDay !== "") {
                 holyDayEl.innerText = `🌟 ${importantDay}`;
@@ -986,7 +1022,6 @@
             }
         }
 
-        // สั่งให้นาฬิกาเดินทุกๆ 1 วินาที
         setInterval(updateDateTime, 1000);
         updateDateTime();
 
