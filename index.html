@@ -12,7 +12,6 @@
             overflow: hidden;
             background-color: #1a1a1a;
             font-family: sans-serif;
-            /* ป้องกันการลากคลุมข้อความบน UI โดยไม่ตั้งใจ */
             user-select: none;
         }
 
@@ -34,59 +33,9 @@
             z-index: 2;
         }
 
-        /* --- สไตล์สำหรับป้ายบอร์ด 3D --- */
-        .board-container {
-            width: 500px;
-            /* ใช้ min-height แทน height แบบตายตัว เพื่อให้กล่องขยายตามเนื้อหาได้ */
-            min-height: 650px;
-            background: rgba(20, 10, 5, 0.85);
-            border: 4px solid #b8860b;
-            border-radius: 10px;
-            color: #fff;
-            padding: 30px;
-            box-sizing: border-box;
-            font-family: 'Sarabun', sans-serif;
-            box-shadow: 0 0 20px rgba(218, 165, 32, 0.4);
-            pointer-events: auto;
-        }
-
-        .board-title {
-            color: #ffd700;
-            font-size: 32px;
-            font-weight: bold;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #ffd700;
-            padding-bottom: 10px;
-            text-align: center;
-        }
-
-        .board-text {
-            font-size: 20px;
-            line-height: 1.5;
-            margin-bottom: 15px;
-        }
-
-        .highlight-text {
-            color: #00ffcc;
-            font-weight: bold;
-        }
-
-        .bank-info {
-            background: #ffffff;
-            color: #000;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            font-size: 22px;
-            margin-top: 15px;
-            border: 2px solid #ffd700;
-        }
-
-        /* --- UI แบบ Responsive --- */
         :root {
-            /* กำหนดระยะขอบปลอดภัย */
-            --safe-top: clamp(10px, 2vh, 20px);
-            --safe-side: clamp(10px, 2vw, 20px);
+            var(--safe-top): clamp(10px, 2vh, 20px);
+            var(--safe-side): clamp(10px, 2vw, 20px);
         }
 
         #fullscreen-btn {
@@ -110,12 +59,8 @@
 
         #stand-btn {
             position: absolute;
-            /* ย้ายปุ่มมาไว้มุมซ้ายล่าง */
             bottom: clamp(20px, 4vh, 40px);
             left: var(--safe-side);
-
-            /* ลบคำสั่ง left: 50% และ transform: translateX(-50%) ออก เพื่อไม่ให้อยู่ตรงกลาง */
-
             padding: 12px 30px;
             background-color: #d32f2f;
             color: white;
@@ -135,46 +80,8 @@
             background-color: #f44336;
         }
 
-        .ui-box {
-            position: absolute;
-            left: var(--safe-side);
-            padding: 8px 12px;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: #ffd700;
-            border: 1px solid #ffd700;
-            border-radius: 5px;
-            z-index: 999;
-            font-size: clamp(11px, 1.5vh, 13px);
-            max-width: 60vw;
-            /* ป้องกันกล่องข้อความยาวทะลุจอ */
-            word-wrap: break-word;
-        }
-
-        /* ใช้ calc จัดระยะห่างแบบยืดหยุ่น */
-        #user-info {
-            top: var(--safe-top);
-        }
-
-        #online-users {
-            top: calc(var(--safe-top) + 40px);
-            color: #ff9900;
-            border-color: #ff9900;
-            font-weight: bold;
-        }
-
-        #schedule-status {
-            top: calc(var(--safe-top) + 80px);
-        }
-
-        #seat-status {
-            top: calc(var(--safe-top) + 120px);
-            color: #00ffcc;
-            border-color: #00ffcc;
-        }
-
         #credits {
             position: absolute;
-            /* ดันขึ้นมาหลบปุ่ม VR เช่นกัน */
             bottom: 25px;
             right: var(--safe-side);
             color: rgba(255, 255, 255, 0.7);
@@ -199,22 +106,10 @@
             color: #ffffff;
         }
 
-        /* --- Media Query สำหรับมือถือแนวตั้ง (Portrait) --- */
         @media (max-width: 768px) {
-            #user-info {
-                top: 10px;
-            }
-
-            #online-users {
-                top: 45px;
-            }
-
-            #schedule-status {
-                top: 80px;
-            }
-
-            #seat-status {
-                top: 115px;
+            #hud-container {
+                top: 10px !important;
+                left: 10px !important;
             }
 
             #stand-btn {
@@ -227,10 +122,53 @@
 </head>
 
 <body>
-    <div id="user-info" class="ui-box">ชื่อผู้ใช้: กำลังโหลด...</div>
-    <div id="online-users" class="ui-box">ผู้เข้าร่วมขณะนี้: กำลังนับ...</div>
-    <div id="schedule-status" class="ui-box">กำลังตรวจสอบเวลา...</div>
-    <div id="seat-status" class="ui-box">สถานะ: คลิกเลือกเบาะเพื่อจอง หรือคลิกจุดสีทองเพื่อยืนอ่านป้าย</div>
+    <!-- ========================================== -->
+    <!-- 1. ซ่อนกล่องสถานะเดิม (เพื่อให้ระบบคลิกที่นั่งเดิมยังทำงานได้โดยไม่พัง) -->
+    <!-- ========================================== -->
+    <div id="user-info" style="display: none;">ชื่อผู้ใช้: กำลังโหลด...</div>
+    <!-- กล่องข้อมูล Firebase (ซ่อนไว้รอสลับ) -->
+    <div id="global-users" style="display: none;">🌐 กัลยาณมิตรทั้งหมด: กำลังโหลด...</div>
+    <div id="room-status" style="display: none;">🏠 ท่านอยู่ห้องที่: กำลังโหลด...</div>
+    <div id="schedule-status" style="display: none;">กำลังตรวจสอบเวลา...</div>
+    <div id="seat-status" style="display: none;">สถานะ: คลิกเลือกเบาะ หรือคลิกจุดสีทองหน้าบอร์ด</div>
+
+    <!-- ========================================== -->
+    <!-- 2. กล่อง UI สเตตัสใหม่ และ ปฏิทิน/นาฬิกา -->
+    <!-- ========================================== -->
+    <div id="hud-container"
+        style="position: absolute; top: 20px; left: 20px; z-index: 100; display: flex; flex-direction: column; gap: 10px; pointer-events: none;">
+
+        <!-- บรรทัด 1: ชื่อผู้ใช้งาน (คงที่) -->
+        <div id="user-profile"
+            style="border: 1px solid #ffd700; border-radius: 4px; padding: 8px 12px; background: rgba(20, 10, 5, 0.85); color: #ffd700; font-family: 'Sarabun', sans-serif; font-weight: bold; width: fit-content; pointer-events: auto; font-size: 14px;">
+            ผู้ใช้งาน: กำลังโหลด...
+        </div>
+
+        <!-- บรรทัด 2: ข้อมูลที่วนลูป (ผู้เข้าร่วม / โหมด / สถานะ) -->
+        <div id="rotating-status"
+            style="border: 1px solid #00ffcc; border-radius: 4px; padding: 8px 12px; background: rgba(20, 10, 5, 0.85); color: #00ffcc; font-family: 'Sarabun', sans-serif; font-weight: bold; width: fit-content; transition: opacity 0.4s ease-in-out; pointer-events: auto; font-size: 14px;">
+            กำลังโหลดข้อมูล...
+        </div>
+
+        <!-- กล่องนาฬิกาและปฏิทินจันทรคติไทย -->
+        <div id="datetime-box"
+            style="border: 1px solid #ff9800; border-radius: 4px; padding: 10px 15px; background: rgba(20, 10, 5, 0.85); font-family: 'Sarabun', sans-serif; width: fit-content; margin-top: 5px; pointer-events: auto;">
+            <div id="time-display"
+                style="font-size: 26px; font-weight: bold; color: #ffeb3b; text-align: center; margin-bottom: 5px; letter-spacing: 2px;">
+                00:00:00
+            </div>
+            <div id="date-display" style="font-size: 15px; color: #ffffff; text-align: center;">
+                วัน...
+            </div>
+            <div id="lunar-display" style="font-size: 15px; color: #ffb74d; text-align: center; margin-top: 2px;">
+                ข้างขึ้น...
+            </div>
+            <div id="holy-day-display"
+                style="font-size: 15px; color: #ff5252; font-weight: bold; text-align: center; margin-top: 5px; display: none;">
+                🌸 วันพระ
+            </div>
+        </div>
+    </div>
 
     <button id="fullscreen-btn">ขยายเต็มจอ</button>
     <button id="stand-btn">🚶 เดินกลับ</button>
@@ -258,9 +196,88 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 
+        // นำเข้าไฟล์ตั้งค่าของเรา
+        import { appConfig } from './config.js';
+
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
+        import { getDatabase, ref, get, update, onValue, onDisconnect, increment } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
+
+        // ==========================================
+        // ระบบ Firebase จัดการห้อง (Room Instancing)
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyDu_F3ydhj9Pn3-WexZZoIoLntTM7dFqQs",
+            authDomain: "meditation-pavilion.firebaseapp.com",
+            databaseURL: "https://meditation-pavilion-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "meditation-pavilion",
+            storageBucket: "meditation-pavilion.firebasestorage.app",
+            messagingSenderId: "564385718895",
+            appId: "1:564385718895:web:43c63082b6150c6ac4e39a"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        const ROOM_CAPACITY = 30; // ตั้งค่าจำนวนคนสูงสุดต่อห้อง
+        let myRoomId = null;
+
+        async function joinMeditationRoom() {
+            const roomsRef = ref(db, 'rooms');
+            const snapshot = await get(roomsRef);
+            let rooms = snapshot.val() || {};
+
+            let targetRoom = null;
+            let maxRoomIndex = 0;
+
+            // ค้นหาห้องที่คนยังไม่เต็ม
+            for (const [roomId, roomData] of Object.entries(rooms)) {
+                const roomNum = parseInt(roomId.split('_')[1]);
+                if (roomNum > maxRoomIndex) maxRoomIndex = roomNum;
+
+                if (roomData.count < ROOM_CAPACITY) {
+                    targetRoom = roomId;
+                    break;
+                }
+            }
+
+            // ถ้าเต็มทุกห้อง ให้สร้างห้องใหม่ต่อท้าย
+            if (!targetRoom) {
+                targetRoom = `room_${maxRoomIndex + 1}`;
+            }
+            myRoomId = targetRoom;
+
+            // ตั้งค่าให้ลบคนออกแบบ "อัตโนมัติ" เมื่อผู้ใช้ปิดหน้าเว็บ
+            const myRoomCountRef = ref(db, `rooms/${myRoomId}/count`);
+            const globalCountRef = ref(db, `global_users`);
+
+            onDisconnect(myRoomCountRef).set(increment(-1));
+            onDisconnect(globalCountRef).set(increment(-1));
+
+            // อัปเดตข้อมูลเข้าไปในฐานข้อมูลว่ามีคนเข้าห้องเพิ่ม 1 คน
+            update(ref(db), {
+                [`rooms/${myRoomId}/count`]: increment(1),
+                [`global_users`]: increment(1)
+            });
+
+            // ดึงข้อมูลมายิงขึ้นจอ UI แบบ Real-time
+            onValue(globalCountRef, (snap) => {
+                const count = snap.val() || 1;
+                document.getElementById('global-users').innerText = `🌐 กัลยาณมิตรทั้งหมด: ${count} คน`;
+            });
+
+            onValue(myRoomCountRef, (snap) => {
+                const count = snap.val() || 1;
+                const roomNum = myRoomId.split('_')[1];
+                document.getElementById('room-status').innerText = `🏠 ห้องที่: ${roomNum} (จำนวน ${count}/${ROOM_CAPACITY} คน)`;
+            });
+        }
+        joinMeditationRoom();
+
+        // ตั้งชื่อผู้ใช้งาน
         const randomNum = Math.floor(Math.random() * 900) + 100;
         const currentUserName = `กัลยาณมิตร${randomNum}`;
         document.getElementById('user-info').innerText = `ผู้ใช้งาน: ${currentUserName}`;
+        document.getElementById('user-profile').innerText = `ผู้ใช้งาน: ${currentUserName}`;
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x2a3b4c);
@@ -271,11 +288,34 @@
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.copy(defaultCameraPos);
 
+        // สร้างฐาน (Rig) ครอบกล้องไว้ เพื่อใช้ย้ายพิกัดผู้เล่นในโลก VR
+        const vrCameraRig = new THREE.Group();
+        vrCameraRig.add(camera);
+        scene.add(vrCameraRig);
+
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.xr.enabled = true;
         document.body.appendChild(renderer.domElement);
         document.body.appendChild(VRButton.createButton(renderer));
+
+        // โค้ด Sync ตำแหน่งกล้องปกติ เข้าสู่โลก VR แบบ Seamless
+        renderer.xr.addEventListener('sessionstart', () => {
+            const currentX = camera.position.x;
+            const currentZ = camera.position.z;
+            vrCameraRig.position.set(currentX, 0, currentZ);
+
+            const lookDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            lookDirection.y = 0;
+            lookDirection.normalize();
+
+            vrCameraRig.rotation.y = Math.atan2(lookDirection.x, lookDirection.z) + Math.PI;
+        });
+
+        renderer.xr.addEventListener('sessionend', () => {
+            vrCameraRig.position.set(0, 0, 0);
+            vrCameraRig.rotation.set(0, 0, 0);
+        });
 
         const cssRenderer = new CSS3DRenderer();
         cssRenderer.setSize(window.innerWidth, window.innerHeight);
@@ -293,7 +333,6 @@
         floor.rotation.x = -Math.PI / 2;
         scene.add(floor);
 
-        // --- โต๊ะหมู่บูชาและพระพุทธรูป ---
         const altarGroup = new THREE.Group();
         altarGroup.position.set(-3.2, 0, -4.5);
         scene.add(altarGroup);
@@ -320,70 +359,89 @@
             altarGroup.add(buddhaModel);
         });
 
-        // =========================================================
         // --- จอทีวี YouTube และข้อความแทนที่สำหรับโหมด VR ---
-        // =========================================================
         const tvGroup = new THREE.Group();
         tvGroup.position.set(1.5, 2.9, -4.8);
         scene.add(tvGroup);
 
-        // 1. สร้างกรอบทีวี
         const tvFrame = new THREE.Mesh(
             new THREE.BoxGeometry(7.2, 4.2, 0.2),
             new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2 })
         );
         tvGroup.add(tvFrame);
 
-        // 2. สร้าง Canvas วาดข้อความแจ้งเตือนสำหรับโหมด VR (แปลงเป็น 3D Texture)
         const canvas = document.createElement('canvas');
-        canvas.width = 1024;
-        canvas.height = 512;
+        canvas.width = 1280;
+        canvas.height = 720;
         const ctx = canvas.getContext('2d');
 
-        // พื้นหลังสีดำ
-        ctx.fillStyle = '#0a0a0a';
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, 720);
+        bgGrad.addColorStop(0, '#1a0b00');
+        bgGrad.addColorStop(0.5, '#3b1c00');
+        bgGrad.addColorStop(1, '#1a0b00');
+        ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // ข้อความสีทองและขาว
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(40, 40, 1200, 640);
+
         ctx.fillStyle = '#ffd700';
-        ctx.font = 'bold 50px sans-serif';
+        ctx.font = 'bold 70px Sarabun, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('ขออภัยในความไม่สะดวก', canvas.width / 2, canvas.height / 2 - 40);
+        ctx.fillText('🎧 โหมดวิทยุสมาธิ (VR Audio)', canvas.width / 2, 160);
+
+        ctx.beginPath();
+        ctx.moveTo(350, 230);
+        ctx.lineTo(930, 230);
+        ctx.strokeStyle = '#ffeb3b';
+        ctx.lineWidth = 2;
+        ctx.stroke();
 
         ctx.fillStyle = '#ffffff';
-        ctx.font = '36px sans-serif';
-        ctx.fillText('กำลังพัฒนาระบบมัลติมีเดียให้รองรับระบบ VR โลกเสมือนจริง', canvas.width / 2, canvas.height / 2 + 40);
+        ctx.font = '36px Sarabun, sans-serif';
+        ctx.fillText('เพื่อให้ท่านได้รับฟังเสียงสวดมนต์ในขณะอยู่ภายในโลกเสมือนจริง', canvas.width / 2, 310);
 
-        // นำ Canvas มาแปะบนแผ่น Plane 3D
+        ctx.fillStyle = '#00ffcc';
+        ctx.font = 'bold 42px Sarabun, sans-serif';
+        ctx.fillText('คำแนะนำขั้นตอนการใช้งาน:', canvas.width / 2, 400);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '34px Sarabun, sans-serif';
+        ctx.fillText('1. ถอดแว่น หรือกดปุ่ม "EXIT VR" ด้านล่าง เพื่อออกไปที่หน้าจอปกติก่อน', canvas.width / 2, 470);
+        ctx.fillText('2. กดปุ่ม ▶️ Play ที่จอวิดีโอ YouTube เพื่อให้เสียงสวดมนต์เริ่มทำงาน', canvas.width / 2, 530);
+        ctx.fillText('3. กดปุ่ม "ENTER VR" เพื่อกลับเข้าสู่ลานปฏิบัติธรรมอีกครั้ง', canvas.width / 2, 590);
+
         const vrTextTexture = new THREE.CanvasTexture(canvas);
+        vrTextTexture.colorSpace = THREE.SRGBColorSpace;
         const vrScreenGeometry = new THREE.PlaneGeometry(7.0, 3.9);
         const vrScreenMaterial = new THREE.MeshBasicMaterial({ map: vrTextTexture });
         const vrScreen = new THREE.Mesh(vrScreenGeometry, vrScreenMaterial);
 
-        // ขยับป้ายแจ้งเตือนออกมาด้านหน้ากรอบทีวีเล็กน้อย (Z = 0.11)
         vrScreen.position.set(0, 0, 0.11);
         tvGroup.add(vrScreen);
 
-        // 3. ส่วนของ iframe YouTube เดิม (CSS3D)
         const div = document.createElement('div');
         div.style.width = '700px';
         div.style.height = '400px';
         div.style.backgroundColor = '#000';
 
-        const standbyUrl = "https://www.youtube.com/embed/ST6FSkpYrGs";
-        const morningUrl = "https://www.youtube.com/embed/OnwLu4x0WOA";
-        const eveningUrl = "https://www.youtube.com/embed/pPZ20jq8UaU";
+        // ดึง URL จากไฟล์ config.js
+        const standbyUrl = appConfig.youtube.standbyUrl;
+        const morningUrl = appConfig.youtube.morningUrl;
+        const eveningUrl = appConfig.youtube.eveningUrl;
 
         const now = new Date();
         const curMins = now.getHours() * 60 + now.getMinutes();
         let activeVideoUrl = standbyUrl;
         let modeText = "โหมด: สแตนด์บาย (ช่องวัดท่าซุง)";
 
-        if (curMins >= 240 && curMins <= 330) {
+        // ดึงช่วงเวลาจากไฟล์ config.js
+        if (curMins >= appConfig.youtube.morningStart && curMins <= appConfig.youtube.morningEnd) {
             activeVideoUrl = morningUrl + "?autoplay=1";
             modeText = "โหมด: ทำวัตรเช้า (04:00 - 05:30)";
-        } else if (curMins >= 1080 && curMins <= 1170) {
+        } else if (curMins >= appConfig.youtube.eveningStart && curMins <= appConfig.youtube.eveningEnd) {
             activeVideoUrl = eveningUrl + "?autoplay=1";
             modeText = "โหมด: ทำวัตรเย็น (18:00 - 19:30)";
         }
@@ -392,39 +450,49 @@
         div.innerHTML = `<iframe width="700" height="400" src="${activeVideoUrl}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="border-radius: 4px;"></iframe>`;
 
         const cssObject = new CSS3DObject(div);
-        // ขยับ iframe ให้อยู่หน้าแผ่นข้อความ VR นิดหน่อย (Z = 0.12) เพื่อใช้บังข้อความไว้ในโหมดปกติ
         cssObject.position.set(0, 0, 0.12);
         cssObject.scale.set(0.01, 0.01, 0.01);
         tvGroup.add(cssObject);
-        // =========================================================
 
-        // =========================================================
-        // สร้างบอร์ด 3D (Texture Canvas) - ฝั่งซ้าย (ประชาสัมพันธ์)
-        // =========================================================
+        // --- สร้างบอร์ดฝั่งซ้าย (ประชาสัมพันธ์) ---
         const prGroup = new THREE.Group();
         prGroup.position.set(-7.5, 1.675, 0.0);
         prGroup.rotation.y = Math.PI / 2;
         scene.add(prGroup);
 
         const prFrame = new THREE.Mesh(
-            new THREE.BoxGeometry(2.6, 3.35, 0.1),
-            new THREE.MeshStandardMaterial({ color: 0x3b2219, roughness: 0.8 })
+            new THREE.BoxGeometry(2.7, 3.45, 0.1),
+            new THREE.MeshStandardMaterial({ color: 0x4a2b18, roughness: 1.0 })
         );
         prGroup.add(prFrame);
 
-        // วาด Canvas ฝั่งซ้าย
         const prCanvas = document.createElement('canvas');
         prCanvas.width = 500;
         prCanvas.height = 650;
         const prCtx = prCanvas.getContext('2d');
 
-        prCtx.fillStyle = '#140a05';
+        const prWoodGrad = prCtx.createLinearGradient(0, 0, 0, 650);
+        prWoodGrad.addColorStop(0, '#5c3a21');
+        prWoodGrad.addColorStop(0.4, '#422815');
+        prWoodGrad.addColorStop(0.8, '#5c3a21');
+        prWoodGrad.addColorStop(1, '#2e1b0d');
+        prCtx.fillStyle = prWoodGrad;
         prCtx.fillRect(0, 0, 500, 650);
 
+        prCtx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        for (let i = 0; i < 500; i += 8) {
+            if (Math.random() > 0.2) {
+                prCtx.fillRect(i, 0, Math.random() * 3 + 1, 650);
+            }
+        }
+
+        // ==========================================
+        // วาดข้อความบอร์ดฝั่งซ้าย (ดึงข้อมูลจาก config.js)
+        // ==========================================
         prCtx.fillStyle = '#ffd700';
         prCtx.font = 'bold 32px Sarabun, sans-serif';
         prCtx.textAlign = 'center';
-        prCtx.fillText('📢 กระดานสะพานบุญ', 250, 60);
+        prCtx.fillText(appConfig.prBoard.title, 250, 60);
 
         prCtx.beginPath();
         prCtx.moveTo(100, 80);
@@ -433,33 +501,64 @@
         prCtx.lineWidth = 2;
         prCtx.stroke();
 
-        prCtx.fillStyle = '#ffeb3b';
-        prCtx.font = '20px Sarabun, sans-serif';
-        prCtx.fillText('ขอเชิญชวนกัลยาณมิตรทุกท่าน ร่วมสมทบทุน', 250, 120);
-        prCtx.fillText('ในโครงการบุญต่างๆ เพื่อสืบทอดพระพุทธศาสนา', 250, 150);
+        // --- ส่วนที่ 1: ตารางออกอากาศ ---
+        prCtx.fillStyle = '#00ffcc';
+        prCtx.font = 'bold 24px Sarabun, sans-serif';
+        prCtx.fillText(appConfig.prBoard.scheduleTitle, 250, 135);
 
         prCtx.textAlign = 'left';
-        prCtx.fillStyle = '#00ffcc';
-        prCtx.font = 'bold 22px Sarabun, sans-serif';
-        prCtx.fillText('• กองทุนภิกษุอาพาธ', 50, 230);
         prCtx.fillStyle = '#ffffff';
-        prCtx.font = '20px Sarabun, sans-serif';
-        prCtx.fillText('มูลนิธิโรงพยาบาลสงฆ์ (XXX-X-XXXXX-X)', 70, 260);
+        prCtx.font = '22px Sarabun, sans-serif';
+        // วนลูปข้อความตาราง
+        appConfig.prBoard.scheduleLines.forEach((line, index) => {
+            prCtx.fillText(line, 80, 180 + (index * 40));
+        });
+
+        // --- เส้นคั่น ---
+        prCtx.beginPath();
+        prCtx.moveTo(150, 310);
+        prCtx.lineTo(350, 310);
+        prCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        prCtx.lineWidth = 1;
+        prCtx.stroke();
+
+        // --- ส่วนที่ 2: ติดต่อประชาสัมพันธ์ ---
+        prCtx.textAlign = 'center';
+        prCtx.fillStyle = '#ffeb3b';
+        prCtx.font = 'bold 24px Sarabun, sans-serif';
+        prCtx.fillText(appConfig.prBoard.contactTitle, 250, 370);
+
+        prCtx.fillStyle = '#ffffff';
+        prCtx.font = '18px Sarabun, sans-serif';
+        // วนลูปข้อความประชาสัมพันธ์
+        appConfig.prBoard.contactLines.forEach((line, index) => {
+            prCtx.fillText(line, 250, 420 + (index * 30));
+        });
+
+        // กล่องช่องทางติดต่อแอดมิน
+        prCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        if (prCtx.roundRect) {
+            prCtx.beginPath();
+            prCtx.roundRect(70, 520, 360, 90, 15);
+            prCtx.fill();
+            prCtx.strokeStyle = '#ffd700';
+            prCtx.lineWidth = 2;
+            prCtx.stroke();
+        } else {
+            prCtx.fillRect(70, 520, 360, 90);
+        }
 
         prCtx.fillStyle = '#00ffcc';
-        prCtx.font = 'bold 22px Sarabun, sans-serif';
-        prCtx.fillText('• ร่วมสร้างอุโบสถ', 50, 330);
-        prCtx.fillStyle = '#ffffff';
-        prCtx.font = '20px Sarabun, sans-serif';
-        prCtx.fillText('วัดป่า... (XXX-X-XXXXX-X)', 70, 360);
+        prCtx.font = 'bold 20px Sarabun, sans-serif';
+        prCtx.fillText(appConfig.prBoard.contactBoxTitle, 250, 555);
 
-        prCtx.fillStyle = '#00ffcc';
-        prCtx.font = 'bold 22px Sarabun, sans-serif';
-        prCtx.fillText('• กองทุนคิลานเภสัช', 50, 430);
         prCtx.fillStyle = '#ffffff';
-        prCtx.font = '20px Sarabun, sans-serif';
-        prCtx.fillText('วัดท่าซุง (XXX-X-XXXXX-X)', 70, 460);
+        prCtx.font = 'bold 28px Sarabun, sans-serif';
+        prCtx.fillText(appConfig.prBoard.contactPhone, 250, 595);
 
+        // ==========================================
+        // สิ้นสุดการวาดข้อความ นำไปสร้างเป็น Texture ตามเดิม
+        // ==========================================
         const prTexture = new THREE.CanvasTexture(prCanvas);
         prTexture.colorSpace = THREE.SRGBColorSpace;
         const prPlane = new THREE.Mesh(
@@ -469,7 +568,6 @@
         prPlane.position.set(0, 0, 0.06);
         prGroup.add(prPlane);
 
-        // จุดยืนอ่านบอร์ดซ้าย
         const hotspotGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.05, 32);
         const hotspotMat = new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0x886600 });
         const prHotspot = new THREE.Mesh(hotspotGeo, hotspotMat);
@@ -481,28 +579,37 @@
         };
         scene.add(prHotspot);
 
-        // =========================================================
-        // สร้างบอร์ด 3D (Texture Canvas) - ฝั่งขวา (นักพัฒนา)
-        // =========================================================
+        // --- สร้างบอร์ดฝั่งขวา (นักพัฒนา) ---
         const devGroup = new THREE.Group();
         devGroup.position.set(7.5, 1.675, 0.0);
         devGroup.rotation.y = -Math.PI / 2;
         scene.add(devGroup);
 
         const devFrame = new THREE.Mesh(
-            new THREE.BoxGeometry(2.6, 3.35, 0.1),
-            new THREE.MeshStandardMaterial({ color: 0x3b2219, roughness: 0.8 })
+            new THREE.BoxGeometry(2.7, 3.45, 0.1),
+            new THREE.MeshStandardMaterial({ color: 0x4a2b18, roughness: 1.0 })
         );
         devGroup.add(devFrame);
 
-        // วาด Canvas ฝั่งขวา (อัปเดตเป็น LINE ID และปุ่มสีเขียว)
         const devCanvas = document.createElement('canvas');
         devCanvas.width = 500;
         devCanvas.height = 650;
         const devCtx = devCanvas.getContext('2d');
 
-        devCtx.fillStyle = '#140a05';
+        const devWoodGrad = devCtx.createLinearGradient(0, 0, 0, 650);
+        devWoodGrad.addColorStop(0, '#5c3a21');
+        devWoodGrad.addColorStop(0.4, '#422815');
+        devWoodGrad.addColorStop(0.8, '#5c3a21');
+        devWoodGrad.addColorStop(1, '#2e1b0d');
+        devCtx.fillStyle = devWoodGrad;
         devCtx.fillRect(0, 0, 500, 650);
+
+        devCtx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        for (let i = 0; i < 500; i += 8) {
+            if (Math.random() > 0.2) {
+                devCtx.fillRect(i, 0, Math.random() * 3 + 1, 650);
+            }
+        }
 
         devCtx.fillStyle = '#ffd700';
         devCtx.font = 'bold 32px Sarabun, sans-serif';
@@ -527,9 +634,7 @@
         devCtx.fillText('สามารถทักมาพูดคุย เลี้ยงกาแฟ หรือร่วมสนับสนุนโปรเจกต์ได้เลย', 250, 260);
         devCtx.fillText('ครับ ยินดีรับฟังทุกความคิดเห็น!', 250, 290);
 
-        // กล่องสีขาวพื้นหลังช่องทางการติดต่อ
         devCtx.fillStyle = '#ffffff';
-        // ใช้ roundRect เพื่อสร้างกล่องขอบมน
         if (devCtx.roundRect) {
             devCtx.beginPath();
             devCtx.roundRect(50, 360, 400, 240, 15);
@@ -541,7 +646,6 @@
             devCtx.fillRect(50, 360, 400, 240);
         }
 
-        // ข้อความ LINE ID
         devCtx.fillStyle = '#666666';
         devCtx.font = 'bold 24px Sarabun, sans-serif';
         devCtx.fillText('LINE ID / เบอร์โทร:', 250, 410);
@@ -550,7 +654,6 @@
         devCtx.font = 'bold 36px Sarabun, sans-serif';
         devCtx.fillText('0926533228', 250, 460);
 
-        // วาดปุ่มทักไลน์สีเขียว
         devCtx.fillStyle = '#5ac346';
         if (devCtx.roundRect) {
             devCtx.beginPath();
@@ -573,20 +676,17 @@
         devPlane.position.set(0, 0, 0.06);
         devGroup.add(devPlane);
 
-        // --- สร้างโซนคลิก (Hitbox) ล่องหน วางทับตำแหน่งปุ่ม LINE สีเขียว ---
-        const lineBtnGeo = new THREE.PlaneGeometry(1.5, 0.3); // ขนาดกว้างยาวเท่าปุ่มที่วาด
+        const lineBtnGeo = new THREE.PlaneGeometry(1.5, 0.3);
         const lineBtnMat = new THREE.MeshBasicMaterial({
             color: 0x00ff00,
             transparent: true,
-            opacity: 0 // ตั้งค่าเป็น 0 เพื่อให้ล่องหน แต่วัตถุยังใช้รับคำสั่งคลิกได้
+            opacity: 0
         });
         const lineHitbox = new THREE.Mesh(lineBtnGeo, lineBtnMat);
-        // คำนวณแกน Y ลงมาที่ -1.025 จะวางทับปุ่มสีเขียวพอดีเป๊ะ
         lineHitbox.position.set(0, -1.025, 0.07);
         lineHitbox.userData = { isLineButton: true };
         devGroup.add(lineHitbox);
 
-        // จุดยืนอ่านบอร์ดขวา
         const devHotspot = new THREE.Mesh(hotspotGeo, hotspotMat.clone());
         devHotspot.position.set(5.0, 0.025, 0.0);
         devHotspot.userData = {
@@ -596,9 +696,7 @@
         };
         scene.add(devHotspot);
 
-        // =========================================================
-        // สร้างเบาะรองนั่งสมาธิและบอท
-        // =========================================================
+        // --- เบาะรองนั่งและบอท ---
         const cushionGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 32);
         const rows = 5, colsPerSide = 3, spacingX = 1.2, spacingZ = 1.1, aisleWidth = 1.0;
         const seatingGroup = new THREE.Group();
@@ -620,71 +718,41 @@
             }
         }
 
-        // --- ฟังก์ชันสร้างหุ่นคนนั่งสมาธิแบบทรงทึบมีออร่า (ปรับลดระดับแขนไม่ให้ทะลุไหล่) ---
         function createMeditatorAvatar() {
             const group = new THREE.Group();
-
             const auraMaterial = new THREE.MeshStandardMaterial({
-                color: 0xffeab3,
-                emissive: 0xd4af37,
-                emissiveIntensity: 0.6,
-                roughness: 0.4,
-                metalness: 0.1
+                color: 0xffeab3, emissive: 0xd4af37, emissiveIntensity: 0.6,
+                roughness: 0.4, metalness: 0.1
             });
 
-            // 1. ศีรษะ
-            const headGeo = new THREE.SphereGeometry(0.12, 16, 16);
-            const head = new THREE.Mesh(headGeo, auraMaterial);
-            head.position.set(0, 0.60, 0);
-            group.add(head);
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), auraMaterial);
+            head.position.set(0, 0.60, 0); group.add(head);
 
-            // 2. ช่วงบ่าและไหล่
-            const shoulderGeo = new THREE.SphereGeometry(0.15, 16, 16);
-            const shoulder = new THREE.Mesh(shoulderGeo, auraMaterial);
-            shoulder.scale.set(1.35, 0.65, 1.0);
-            shoulder.position.set(0, 0.44, 0);
-            group.add(shoulder);
+            const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), auraMaterial);
+            shoulder.scale.set(1.35, 0.65, 1.0); shoulder.position.set(0, 0.44, 0); group.add(shoulder);
 
-            // 3. ลำตัว
-            const bodyGeo = new THREE.CylinderGeometry(0.14, 0.26, 0.25, 16);
-            const body = new THREE.Mesh(bodyGeo, auraMaterial);
-            body.position.set(0, 0.32, 0);
-            group.add(body);
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.26, 0.25, 16), auraMaterial);
+            body.position.set(0, 0.32, 0); group.add(body);
 
-            // 4. ช่วงหน้าท้อง/เชิงกราน
-            const pelvisGeo = new THREE.SphereGeometry(0.28, 16, 16);
-            const pelvis = new THREE.Mesh(pelvisGeo, auraMaterial);
-            pelvis.scale.set(1.1, 0.6, 0.9);
-            pelvis.position.set(0, 0.16, 0.02);
-            group.add(pelvis);
+            const pelvis = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 16), auraMaterial);
+            pelvis.scale.set(1.1, 0.6, 0.9); pelvis.position.set(0, 0.16, 0.02); group.add(pelvis);
 
-            // 5. ท่อนล่าง / ท่านั่งขัดสมาธิ
-            const legsGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.08, 16);
-            const legs = new THREE.Mesh(legsGeo, auraMaterial);
-            legs.scale.set(1.1, 1, 0.8);
-            legs.position.set(0, 0.04, 0.05);
-            group.add(legs);
+            const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.08, 16), auraMaterial);
+            legs.scale.set(1.1, 1, 0.8); legs.position.set(0, 0.04, 0.05); group.add(legs);
 
-            // 6. แขนซ้าย (กดแกน Y ลงจาก 0.35 เป็น 0.28 เพื่อซ่อนปลายแขนไว้ในบ่า)
             const armGeo = new THREE.CapsuleGeometry(0.045, 0.26, 4, 8);
             const leftArm = new THREE.Mesh(armGeo, auraMaterial);
-            leftArm.position.set(-0.17, 0.28, 0.10);
-            leftArm.rotation.set(-0.5, 0, 0.2);
-            group.add(leftArm);
+            leftArm.position.set(-0.17, 0.28, 0.10); leftArm.rotation.set(-0.5, 0, 0.2); group.add(leftArm);
 
-            // 7. แขนขวา (กดแกน Y ลงจาก 0.35 เป็น 0.28 เช่นเดียวกัน)
             const rightArm = new THREE.Mesh(armGeo, auraMaterial);
-            rightArm.position.set(0.17, 0.28, 0.10);
-            rightArm.rotation.set(-0.5, 0, -0.2);
-            group.add(rightArm);
+            rightArm.position.set(0.17, 0.28, 0.10); rightArm.rotation.set(-0.5, 0, -0.2); group.add(rightArm);
 
-            // ปรับทิศทางให้หันหน้าไปทางทีวี
             group.rotation.y = Math.PI;
-
             return group;
         }
 
-        const botCount = 4;
+        // สุ่มจำนวนบอทกัลยาณมิตรตั้งแต่ 3 ถึง 6 ตัว
+        const botCount = Math.floor(Math.random() * 4) + 3;
         const availableIndices = [...Array(cushionsList.length).keys()];
         for (let i = 0; i < botCount; i++) {
             if (availableIndices.length === 0) break;
@@ -692,21 +760,17 @@
             const botCushion = cushionsList[cushionIdx];
             botCushion.userData.isOccupied = true;
             botCushion.userData.occupantName = `กัลยาณมิตร${Math.floor(Math.random() * 900 + 100)} (AI)`;
-
-            // ทำให้เบาะที่ถูกจองเข้มขึ้นเล็กน้อย
             botCushion.material.color.setHex(0x2a1610);
 
-            // เรียกใช้ฟังก์ชันสร้างหุ่นและวางตำแหน่งให้ตรงกับเบาะนั้น
             const avatar = createMeditatorAvatar();
             avatar.position.set(botCushion.position.x, 0.05, botCushion.position.z);
             seatingGroup.add(avatar);
         }
         document.getElementById('online-users').innerText = `ผู้เข้าร่วมขณะนี้: ${botCount + 1} คน`;
 
-        // รวมวัตถุที่คลิกได้ทั้งหมด (เบาะนั่ง + จุดยืนอ่าน)
         const interactables = [...cushionsList, prHotspot, devHotspot, lineHitbox];
 
-        // --- ระบบกล้องสมูท ---
+        // --- ระบบควบคุมและ Raycaster ---
         let isSeated = false;
         let isReading = false;
         let isTransitioning = false;
@@ -714,12 +778,9 @@
         const targetLookAt = new THREE.Vector3();
 
         const controls = new OrbitControls(camera, renderer.domElement);
-        // ปิด enableDamping เพื่อให้กล้องหยุดทันทีที่ปล่อยเมาส์หรือนิ้ว แก้ปัญหาตาลาย
         controls.enableDamping = false;
         controls.maxPolarAngle = Math.PI / 2 + 0.1;
         controls.target.copy(defaultTargetPos);
-
-        // เพิ่มบรรทัดนี้เพื่อให้กล้องหมุนหันตามทิศทางเมาส์ที่ลาก
         controls.rotateSpeed = -1.0;
 
         const raycaster = new THREE.Raycaster();
@@ -727,8 +788,6 @@
 
         window.addEventListener('click', (event) => {
             if (event.target.tagName !== 'CANVAS') return;
-
-            // บล็อกการคลิกเฉพาะตอนที่กล้องกำลังเคลื่อนที่ (วาร์ป) เท่านั้น
             if (isTransitioning) return;
 
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -740,25 +799,16 @@
             if (intersects.length > 0) {
                 const clickedObj = intersects[0].object;
 
-                // ==========================================
-                // 1. หากคลิกที่ปุ่มแอดไลน์ (ให้สิทธิพิเศษกดได้เสมอแม้ยืนอ่านบอร์ดอยู่)
-                // ==========================================
                 if (clickedObj.userData.isLineButton) {
                     window.open('https://line.me/ti/p/~0926533228', '_blank');
-
                     if (renderer.xr.isPresenting) {
                         renderer.xr.getSession().end();
                     }
                     return;
                 }
 
-                // *** ย้ายเงื่อนไขดักจับมาไว้ตรงนี้ ***
-                // ถ้ากำลังนั่งสมาธิ หรือ กำลังยืนอ่านอยู่ จะไม่ให้กดเปลี่ยนไปที่เบาะอื่นหรือจุดอื่นซ้ำ
                 if (isSeated || isReading) return;
 
-                // ==========================================
-                // 2. หากคลิกที่จุดยืนอ่าน (Hotspot จุดสีทอง)
-                // ==========================================
                 else if (clickedObj.userData.isHotspot) {
                     targetCamPos.copy(clickedObj.userData.targetPos);
                     targetLookAt.copy(clickedObj.userData.lookAtPos);
@@ -774,10 +824,6 @@
                     standBtn.innerText = "🚶 เดินกลับ";
                     standBtn.style.display = 'block';
                 }
-
-                // ==========================================
-                // 3. หากคลิกที่เบาะนั่งสมาธิ
-                // ==========================================
                 else {
                     if (clickedObj.userData.isOccupied) {
                         alert(`ที่นั่งนี้มีผู้ใช้งานแล้ว (${clickedObj.userData.occupantName}) กรุณาเลือกที่นั่งอื่นครับ`);
@@ -790,7 +836,7 @@
                     clickedObj.material.color.setHex(0x00ffcc);
                     mySelectedCushion = clickedObj;
 
-                    document.getElementById('seat-status').innerText = `สถานะ: นั่งสมาธิ ณ แถว ${clickedObj.userData.row}, ตัวที่ ${clickedObj.userData.col}`;
+                    document.getElementById('seat-status').innerText = `สถานะ: นั่งสมาธิ แถว ${clickedObj.userData.row}, ตัวที่ ${clickedObj.userData.col}`;
 
                     const standBtn = document.getElementById('stand-btn');
                     standBtn.innerText = "🚶 ลุกจากที่นั่ง";
@@ -800,7 +846,6 @@
                     clickedObj.getWorldPosition(cushionWorldPos);
 
                     targetCamPos.set(cushionWorldPos.x, 1.0, cushionWorldPos.z);
-
                     const tvPos = new THREE.Vector3(1.5, 2.9, -4.8);
                     const dir = tvPos.clone().sub(targetCamPos).normalize();
                     targetLookAt.copy(targetCamPos).add(dir.multiplyScalar(0.01));
@@ -821,7 +866,7 @@
                 mySelectedCushion = null;
             }
 
-            document.getElementById('seat-status').innerText = "สถานะ: อิสระ (คลิกเลือกจุดต่างๆ ในห้อง)";
+            document.getElementById('seat-status').innerText = "สถานะ: คลิกเลือกเบาะ หรือคลิกจุดสีทองหน้าบอร์ด";
             document.getElementById('stand-btn').style.display = 'none';
 
             isSeated = false;
@@ -833,9 +878,120 @@
             targetLookAt.copy(defaultTargetPos);
         });
 
+        // =========================================================
+        // โค้ดระบบ UI วนลูปบรรทัดที่ 2
+        // =========================================================
+        const rotatingEl = document.getElementById('rotating-status');
+        const hiddenEls = ['global-users', 'room-status', 'schedule-status', 'seat-status'];
+        const colors = ['#ffffff', '#ff9800', '#ffd700', '#00ffcc'];
+        let currentStatusIndex = 0;
+
+        setInterval(() => {
+            rotatingEl.style.opacity = 0;
+            setTimeout(() => {
+                const sourceEl = document.getElementById(hiddenEls[currentStatusIndex]);
+                if (sourceEl) {
+                    rotatingEl.innerText = sourceEl.innerText;
+                    rotatingEl.style.color = colors[currentStatusIndex];
+                    rotatingEl.style.borderColor = colors[currentStatusIndex];
+                }
+                rotatingEl.style.opacity = 1;
+                currentStatusIndex = (currentStatusIndex + 1) % hiddenEls.length;
+            }, 400);
+        }, 3500);
+
+        // =========================================================
+        // โค้ดระบบนาฬิกาและปฏิทินจันทรคติไทย (อัปเกรดบอกเดือนและวันสำคัญ)
+        // =========================================================
+        function updateDateTime() {
+            const now = new Date();
+            // 1. อัปเดตเวลา
+            const timeStr = now.toLocaleTimeString('th-TH', { hour12: false });
+            document.getElementById('time-display').innerText = timeStr;
+
+            // 2. อัปเดตวันที่สากล
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const dateStr = now.toLocaleDateString('th-TH', options);
+            document.getElementById('date-display').innerText = dateStr;
+
+            // 3. คำนวณดิถีจันทร์และเดือนทางจันทรคติไทย
+            // ใช้วันขึ้น 1 ค่ำ เดือน 3 ของปี 2026 (17 ก.พ. 2026) เป็นจุดอ้างอิงเพื่อความแม่นยำ
+            const cycle = 29.530588;
+            const refDate = new Date(2026, 1, 17, 0, 0, 0).getTime();
+            const refMonth = 3;
+
+            const diff = now.getTime() - refDate;
+            const daysDiff = diff / (1000 * 60 * 60 * 24);
+
+            let lunarCycles = Math.floor(daysDiff / cycle);
+            let moonAge = daysDiff - (lunarCycles * cycle);
+
+            // คำนวณเดือน (1 ถึง 12)
+            let currentLunarMonth = (refMonth + lunarCycles) % 12;
+            if (currentLunarMonth <= 0) currentLunarMonth += 12;
+
+            let phase = "";
+            let day = 1;
+            let isHolyDay = false;
+            let isWaxing = true; // ตรวจสอบว่าเป็นข้างขึ้นหรือไม่
+
+            // คัดแยกข้างขึ้น - ข้างแรม
+            if (moonAge < 14.765) {
+                day = Math.floor(moonAge) + 1;
+                if (day > 15) day = 15;
+                phase = `ขึ้น ${day} ค่ำ`;
+                if (day === 8 || day === 15) isHolyDay = true;
+                isWaxing = true;
+            } else {
+                day = Math.floor(moonAge - 14.765) + 1;
+                if (day > 15) day = 15;
+                phase = `แรม ${day} ค่ำ`;
+                if (day === 8 || day === 15 || (day === 14 && moonAge > 28.5)) isHolyDay = true;
+                isWaxing = false;
+            }
+
+            // แปลงชื่อเดือน 1 และ 2 เป็นชื่อเรียกตามประเพณีไทย
+            let monthName = currentLunarMonth.toString();
+            if (currentLunarMonth === 1) monthName = "อ้าย (๑)";
+            if (currentLunarMonth === 2) monthName = "ยี่ (๒)";
+
+            // แสดงผลลัพธ์ เช่น "ตรงกับ: ขึ้น 15 ค่ำ เดือน 6"
+            document.getElementById('lunar-display').innerText = `ตรงกับ: ${phase} เดือน ${monthName}`;
+
+            // 4. ตรวจสอบวันสำคัญทางพุทธศาสนาแบบไดนามิก (ผูกกับเดือนจันทรคติ)
+            let importantDay = "";
+
+            // ตรวจสอบวันสำคัญที่ตรงกับ วันเพ็ญ (ขึ้น 15 ค่ำ)
+            if (isWaxing && day === 15) {
+                if (currentLunarMonth === 3) importantDay = "วันมาฆบูชา";
+                else if (currentLunarMonth === 6) importantDay = "วันวิสาขบูชา";
+                else if (currentLunarMonth === 8) importantDay = "วันอาสาฬหบูชา";
+                else if (currentLunarMonth === 11) importantDay = "วันออกพรรษา";
+            }
+            // ตรวจสอบวันสำคัญที่ตรงกับ วันแรม 1 ค่ำ
+            else if (!isWaxing && day === 1) {
+                if (currentLunarMonth === 8) importantDay = "วันเข้าพรรษา";
+            }
+
+            // 5. อัปเดตป้ายแจ้งเตือนวันสำคัญ
+            const holyDayEl = document.getElementById('holy-day-display');
+            if (importantDay !== "") {
+                holyDayEl.innerText = `🌟 ${importantDay}`;
+                holyDayEl.style.display = 'block';
+            } else if (isHolyDay) {
+                holyDayEl.innerText = "🌸 วันธรรมสวนะ (วันพระ)";
+                holyDayEl.style.display = 'block';
+            } else {
+                holyDayEl.style.display = 'none';
+            }
+        }
+
+        // สั่งให้นาฬิกาเดินทุกๆ 1 วินาที
+        setInterval(updateDateTime, 1000);
+        updateDateTime();
+
         function animate() {
             if (isTransitioning) {
-                // ปรับจาก 0.05 เป็น 0.15 ยิ่งค่าเข้าใกล้ 1 จะยิ่งพุ่งไวขึ้น (ถ้าเป็น 1 คือวาร์ปทันที)
                 camera.position.lerp(targetCamPos, 0.15);
                 controls.target.lerp(targetLookAt, 0.15);
 
