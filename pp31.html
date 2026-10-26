@@ -230,7 +230,6 @@
     <div id="hud-container">
         <div id="user-profile" class="status-box" style="border: 1px solid #ffd700; color: #ffd700;">ผู้ใช้งาน:
             กำลังโหลด...</div>
-        <!-- เพิ่มกล่องสถานะเซิร์ฟเวอร์ -->
         <div id="server-status" class="status-box" style="border: 1px solid #4CAF50; color: #4CAF50;">
             กำลังเชื่อมต่อเซิร์ฟเวอร์...</div>
         <div id="realm-status" class="status-box" style="border: 1px solid #00ffcc; color: #00ffcc;">โถงไตรภพ (Main
@@ -288,14 +287,9 @@
         import { VRButton } from 'three/addons/webxr/VRButton.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
-
-        // นำเข้า Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
         import { getDatabase, ref, get, update, onValue, onDisconnect, increment } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
 
-        // ==========================================
-        // ระบบตั้งชื่อและโหลดหน้า
-        // ==========================================
         let currentUserName = sessionStorage.getItem('meditationUserName');
         if (!currentUserName) {
             currentUserName = `กัลยาณมิตร${Math.floor(Math.random() * 900) + 100}`;
@@ -306,9 +300,6 @@
             setTimeout(() => { document.getElementById('fade-overlay').style.opacity = 0; }, 200);
         };
 
-        // ==========================================
-        // ระบบ Firebase เชื่อมต่อยอดผู้เข้าชม
-        // ==========================================
         const firebaseConfig = {
             apiKey: "AIzaSyDu_F3ydhj9Pn3-WexZZoIoLntTM7dFqQs",
             authDomain: "meditation-pavilion.firebaseapp.com",
@@ -329,7 +320,6 @@
         let currentRoomNum = "1";
 
         function updateServerStatusUI() {
-            // หน้า pp31 ไม่มีบอท จึงโชว์แต่ยอดคนจริง
             document.getElementById('server-status').innerText = `🌐 รวมทุกห้อง: ${globalUsersCount} คน | 🏠 ห้องที่ ${currentRoomNum} (${roomUsersCount}/${ROOM_CAPACITY} คน)`;
         }
 
@@ -337,23 +327,16 @@
             const roomsRef = ref(db, 'rooms');
             const snapshot = await get(roomsRef);
             let rooms = snapshot.val() || {};
-
             let targetRoom = null;
             let maxRoomIndex = 0;
 
             for (const [roomId, roomData] of Object.entries(rooms)) {
                 const roomNum = parseInt(roomId.split('_')[1]);
                 if (roomNum > maxRoomIndex) maxRoomIndex = roomNum;
-
-                if (roomData.count < ROOM_CAPACITY) {
-                    targetRoom = roomId;
-                    break;
-                }
+                if (roomData.count < ROOM_CAPACITY) { targetRoom = roomId; break; }
             }
 
-            if (!targetRoom) {
-                targetRoom = `room_${maxRoomIndex + 1}`;
-            }
+            if (!targetRoom) { targetRoom = `room_${maxRoomIndex + 1}`; }
             myRoomId = targetRoom;
 
             const myRoomCountRef = ref(db, `rooms/${myRoomId}/count`);
@@ -362,27 +345,13 @@
             onDisconnect(myRoomCountRef).set(increment(-1));
             onDisconnect(globalCountRef).set(increment(-1));
 
-            update(ref(db), {
-                [`rooms/${myRoomId}/count`]: increment(1),
-                [`global_users`]: increment(1)
-            });
+            update(ref(db), { [`rooms/${myRoomId}/count`]: increment(1), [`global_users`]: increment(1) });
 
-            onValue(globalCountRef, (snap) => {
-                globalUsersCount = snap.val() || 1;
-                updateServerStatusUI();
-            });
-
-            onValue(myRoomCountRef, (snap) => {
-                roomUsersCount = snap.val() || 1;
-                currentRoomNum = myRoomId.split('_')[1];
-                updateServerStatusUI();
-            });
+            onValue(globalCountRef, (snap) => { globalUsersCount = snap.val() || 1; updateServerStatusUI(); });
+            onValue(myRoomCountRef, (snap) => { roomUsersCount = snap.val() || 1; currentRoomNum = myRoomId.split('_')[1]; updateServerStatusUI(); });
         }
         joinMeditationRoom();
 
-        // ==========================================
-        // ระบบ 3D Scene
-        // ==========================================
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x05050a);
 
@@ -401,7 +370,6 @@
 
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.target.set(0, 1.5, -4.0);
-
         controls.enablePan = false;
         controls.minDistance = 1.5;
         controls.maxDistance = 8.0;
@@ -413,6 +381,48 @@
         const pointLight = new THREE.PointLight(0xffffff, 1, 20);
         pointLight.position.set(0, 5, 2);
         scene.add(pointLight);
+
+        // ==========================================
+        // ระบบพาร์ติเคิลหมอกควันเคลื่อนไหว (Dynamic Smoke Particles)
+        // ==========================================
+        const smokeCanvas = document.createElement('canvas');
+        smokeCanvas.width = 128;
+        smokeCanvas.height = 128;
+        const sCtx = smokeCanvas.getContext('2d');
+        const sGradient = sCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
+        sGradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+        sGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        sCtx.fillStyle = sGradient;
+        sCtx.fillRect(0, 0, 128, 128);
+        const smokeTexture = new THREE.CanvasTexture(smokeCanvas);
+
+        const smokeGeo = new THREE.BufferGeometry();
+        const smokeCount = 150;
+        const smokePos = new Float32Array(smokeCount * 3);
+        const smokeSpeeds = new Float32Array(smokeCount);
+        const smokePhases = new Float32Array(smokeCount); // สำหรับการแกว่งซ้ายขวา
+
+        for (let i = 0; i < smokeCount; i++) {
+            smokePos[i * 3] = (Math.random() - 0.5) * 15;
+            smokePos[i * 3 + 1] = (Math.random() - 0.5) * 6;
+            smokePos[i * 3 + 2] = (Math.random() - 0.5) * 15 - 2;
+            smokeSpeeds[i] = 0.005 + Math.random() * 0.015;
+            smokePhases[i] = Math.random() * Math.PI * 2;
+        }
+
+        smokeGeo.setAttribute('position', new THREE.BufferAttribute(smokePos, 3));
+        const smokeMat = new THREE.PointsMaterial({
+            size: 6, // ขนาดก้อนควัน
+            map: smokeTexture,
+            transparent: true,
+            opacity: 0.5,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending // ทำให้ควันสว่างขึ้นเมื่อทับซ้อนกัน
+        });
+        const smokeParticles = new THREE.Points(smokeGeo, smokeMat);
+        scene.add(smokeParticles);
+        smokeParticles.visible = false;
+
 
         // --- MASTER ROOM ENVIRONMENT ---
         const masterRoomGroup = new THREE.Group();
@@ -452,7 +462,8 @@
         iframe.style.width = '100%';
         iframe.style.height = '100%';
         iframe.style.border = 'none';
-        iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+        iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+        iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
         iframe.allowFullscreen = true;
         div.appendChild(iframe);
 
@@ -498,9 +509,7 @@
 
             boardCtx.fillStyle = 'rgba(0, 0, 0, 0.15)';
             for (let i = 0; i < 600; i += 8) {
-                if (Math.random() > 0.2) {
-                    boardCtx.fillRect(i, 0, Math.random() * 3 + 1, 800);
-                }
+                if (Math.random() > 0.2) { boardCtx.fillRect(i, 0, Math.random() * 3 + 1, 800); }
             }
 
             boardCtx.strokeStyle = '#ffd700';
@@ -567,6 +576,7 @@
 
         const loader = new GLTFLoader();
         let currentLoadedModel = null;
+        let currentActiveZone = "";
 
         function disposeHierarchy(node) {
             for (let i = node.children.length - 1; i >= 0; i--) {
@@ -592,6 +602,21 @@
 
             scene.background = new THREE.Color(realm.color).multiplyScalar(0.15);
             pointLight.color.setHex(realm.color);
+
+            // เซ็ตการทำงานของหมอกและแสงตามโซน
+            currentActiveZone = realm.zone;
+            if (realm.zone === 'abaya') {
+                scene.fog = new THREE.FogExp2(realm.color, 0.06);
+                smokeParticles.visible = true;
+                smokeMat.color.setHex(realm.color); // ควันสีแดง
+            } else if (realm.zone === 'arupa') {
+                scene.fog = new THREE.FogExp2(realm.color, 0.03);
+                smokeParticles.visible = true;
+                smokeMat.color.setHex(realm.color); // ควันสีฟ้า
+            } else {
+                scene.fog = null;
+                smokeParticles.visible = false;
+            }
 
             const projectOrigin = "https://winaiac.github.io";
             iframe.src = `https://www.youtube.com/embed/${realm.yt}?autoplay=1&rel=0&origin=${projectOrigin}`;
@@ -624,6 +649,10 @@
             iframe.src = "";
 
             scene.background = new THREE.Color(0x05050a);
+            currentActiveZone = "";
+            scene.fog = null;
+            smokeParticles.visible = false;
+
             document.getElementById('realm-status').innerText = `โถงไตรภพ (Main Lobby)`;
             document.getElementById('realm-status').style.color = `#00ffcc`;
 
@@ -646,6 +675,30 @@
 
             if (currentLoadedModel) {
                 currentLoadedModel.rotation.y += 0.003;
+            }
+
+            // อัปเดตพาร์ติเคิลควันให้ขยับลอยตัว
+            if (smokeParticles.visible) {
+                const positions = smokeParticles.geometry.attributes.position.array;
+                for (let i = 0; i < smokeCount; i++) {
+                    positions[i * 3 + 1] += smokeSpeeds[i]; // ลอยขึ้น
+                    positions[i * 3] += Math.sin(Date.now() * 0.001 + smokePhases[i]) * 0.005; // แกว่งซ้ายขวา
+
+                    // เมื่อลอยสูงเกินไป ให้วนกลับมาเกิดใหม่ข้างล่าง
+                    if (positions[i * 3 + 1] > 6) {
+                        positions[i * 3 + 1] = -3;
+                        positions[i * 3] = (Math.random() - 0.5) * 15;
+                    }
+                }
+                smokeParticles.geometry.attributes.position.needsUpdate = true;
+                smokeParticles.rotation.y += 0.001; // หมุนกลุ่มควันวนรอบห้องช้าๆ
+            }
+
+            // เอฟเฟกต์ไฟกะพริบสำหรับนรก
+            if (currentActiveZone === 'abaya') {
+                pointLight.intensity = 1.0 + (Math.random() * 0.8);
+            } else {
+                pointLight.intensity = 1.0;
             }
         }
         renderer.setAnimationLoop(animate);
