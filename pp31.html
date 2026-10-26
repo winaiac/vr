@@ -230,6 +230,9 @@
     <div id="hud-container">
         <div id="user-profile" class="status-box" style="border: 1px solid #ffd700; color: #ffd700;">ผู้ใช้งาน:
             กำลังโหลด...</div>
+        <!-- เพิ่มกล่องสถานะเซิร์ฟเวอร์ -->
+        <div id="server-status" class="status-box" style="border: 1px solid #4CAF50; color: #4CAF50;">
+            กำลังเชื่อมต่อเซิร์ฟเวอร์...</div>
         <div id="realm-status" class="status-box" style="border: 1px solid #00ffcc; color: #00ffcc;">โถงไตรภพ (Main
             Lobby)</div>
     </div>
@@ -286,6 +289,13 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 
+        // นำเข้า Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
+        import { getDatabase, ref, get, update, onValue, onDisconnect, increment } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
+
+        // ==========================================
+        // ระบบตั้งชื่อและโหลดหน้า
+        // ==========================================
         let currentUserName = sessionStorage.getItem('meditationUserName');
         if (!currentUserName) {
             currentUserName = `กัลยาณมิตร${Math.floor(Math.random() * 900) + 100}`;
@@ -296,6 +306,83 @@
             setTimeout(() => { document.getElementById('fade-overlay').style.opacity = 0; }, 200);
         };
 
+        // ==========================================
+        // ระบบ Firebase เชื่อมต่อยอดผู้เข้าชม
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyDu_F3ydhj9Pn3-WexZZoIoLntTM7dFqQs",
+            authDomain: "meditation-pavilion.firebaseapp.com",
+            databaseURL: "https://meditation-pavilion-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "meditation-pavilion",
+            storageBucket: "meditation-pavilion.firebasestorage.app",
+            messagingSenderId: "564385718895",
+            appId: "1:564385718895:web:43c63082b6150c6ac4e39a"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        const ROOM_CAPACITY = 30;
+        let myRoomId = null;
+        let globalUsersCount = 1;
+        let roomUsersCount = 1;
+        let currentRoomNum = "1";
+
+        function updateServerStatusUI() {
+            // หน้า pp31 ไม่มีบอท จึงโชว์แต่ยอดคนจริง
+            document.getElementById('server-status').innerText = `🌐 รวมทุกห้อง: ${globalUsersCount} คน | 🏠 ห้องที่ ${currentRoomNum} (${roomUsersCount}/${ROOM_CAPACITY} คน)`;
+        }
+
+        async function joinMeditationRoom() {
+            const roomsRef = ref(db, 'rooms');
+            const snapshot = await get(roomsRef);
+            let rooms = snapshot.val() || {};
+
+            let targetRoom = null;
+            let maxRoomIndex = 0;
+
+            for (const [roomId, roomData] of Object.entries(rooms)) {
+                const roomNum = parseInt(roomId.split('_')[1]);
+                if (roomNum > maxRoomIndex) maxRoomIndex = roomNum;
+
+                if (roomData.count < ROOM_CAPACITY) {
+                    targetRoom = roomId;
+                    break;
+                }
+            }
+
+            if (!targetRoom) {
+                targetRoom = `room_${maxRoomIndex + 1}`;
+            }
+            myRoomId = targetRoom;
+
+            const myRoomCountRef = ref(db, `rooms/${myRoomId}/count`);
+            const globalCountRef = ref(db, `global_users`);
+
+            onDisconnect(myRoomCountRef).set(increment(-1));
+            onDisconnect(globalCountRef).set(increment(-1));
+
+            update(ref(db), {
+                [`rooms/${myRoomId}/count`]: increment(1),
+                [`global_users`]: increment(1)
+            });
+
+            onValue(globalCountRef, (snap) => {
+                globalUsersCount = snap.val() || 1;
+                updateServerStatusUI();
+            });
+
+            onValue(myRoomCountRef, (snap) => {
+                roomUsersCount = snap.val() || 1;
+                currentRoomNum = myRoomId.split('_')[1];
+                updateServerStatusUI();
+            });
+        }
+        joinMeditationRoom();
+
+        // ==========================================
+        // ระบบ 3D Scene
+        // ==========================================
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x05050a);
 
@@ -361,15 +448,11 @@
         div.style.height = '340px';
         div.style.backgroundColor = '#000';
 
-        // --- ส่วนที่อัปเดตใหม่เพื่อแก้ปัญหาเล่นไม่ได้ ---
         const iframe = document.createElement('iframe');
         iframe.style.width = '100%';
         iframe.style.height = '100%';
         iframe.style.border = 'none';
-        // เพิ่ม web-share
-        iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
-        // เพิ่ม referrerpolicy ตามที่คุณส่งมา
-        iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+        iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
         iframe.allowFullscreen = true;
         div.appendChild(iframe);
 
@@ -456,22 +539,13 @@
             boardTexture.needsUpdate = true;
         }
 
-        // --- ฐานข้อมูล 31 ภพภูมิ (ดึงวิดีโอจาก note.html) ---
+        // --- ฐานข้อมูล 31 ภพภูมิ ---
         const realmsConfig = [
-            // ส่วนอินโทร
             { id: 99, name: "ภาพรวม ๓๑ ภพภูมิ", zone: "intro", color: 0x004d40, glb: "overview.glb", yt: "TLA_WmhbJPQ", desc: ["สังสารวัฏและที่อยู่ของสรรพสัตว์", "อธิบายโครงสร้างไตรภูมิพระร่วง", "แสดงให้เห็นผลของการทำดีและทำชั่ว", "เป็นแผนที่ทางจิตวิญญาณของพุทธศาสนา"] },
-
-            // อรูปภูมิ
             { id: 28, name: "อรูปภูมิ", zone: "arupa", color: 0x00ffff, glb: "abstract.glb", yt: "0bhmtvfULcY", desc: ["ภูมิของผู้ที่เข้าถึงความว่างเปล่า", "ไม่มีรูปร่าง มีเพียงจิตและเจตสิก", "มีอายุยืนยาวมหาศาล", "สถิตอยู่ในความสงบอันประณีตสูงสุด"] },
-
-            // รูปภูมิ
             { id: 12, name: "รูปภูมิ", zone: "rupa", color: 0xffffff, glb: "brahma.glb", yt: "Uh6E4hpato8", desc: ["ภูมิของพระพรหมผู้บรรลุรูปฌาน", "มีรัศมีกายสว่างไสวงดงาม", "ไม่มีความกังวลในเรื่องกามคุณ", "อิ่มเอิบด้วยปีติและสุขอันบริสุทธิ์"] },
-
-            // กามสุคติภูมิ
             { id: 6, name: "สวรรค์ ๖ ชั้น", zone: "kama", color: 0xffd700, glb: "heaven.glb", yt: "Zk6r7yFeVE4", desc: ["เทวภูมิ ๖ ชั้น ที่สถิตของทวยเทพ", "มีวิมานทองและสวนสวรรค์ตระการตา", "อายุขัยยืนยาว เสวยทิพยสมบัติ", "เกิดจากการทำกุศลกรรมบถ ๑๐"] },
             { id: 5, name: "มนุษยภูมิ + ทวีปทั้ง ๔", zone: "kama", color: 0x4CAF50, glb: "human.glb", yt: "VA6O-RGu0hE", desc: ["ภูมิที่ปะปนด้วยความสุขและความทุกข์", "เป็นสถานที่หลักสำหรับสร้างบุญบารมี", "มีโอกาสบรรลุธรรมได้มากที่สุด", "เป็นศูนย์กลางของวัฏสงสาร"] },
-
-            // อบายภูมิ
             { id: 4.1, name: "สำนักพระยายมราช", zone: "abaya", color: 0x4a148c, glb: "yamaraja.glb", yt: "os0QgFpd0jc", desc: ["สถานที่พิพากษาดวงวิญญาณ", "พระยายมราชซักถามเทวทูตทั้ง ๕", "เพื่อให้ดวงวิญญาณระลึกถึงบุญกุศล", "ตัดสินอย่างยุติธรรมตามกฎแห่งกรรม"] },
             { id: 4.2, name: "อสูรพิภพ", zone: "abaya", color: 0x5d4037, glb: "asura.glb", yt: "mzfPlNM8a58", desc: ["ภูมิของอสุรกาย", "มักมีความริษยาและมิจฉาทิฏฐิ", "ต้องทนทุกข์เพราะความหิวและความโกรธ", "มักอาศัยอยู่ใต้เขาพระสุเมรุ"] },
             { id: 3, name: "เปรตภูมิ", zone: "abaya", color: 0x8b0000, glb: "preta.glb", yt: "Zmqs1bUfM44", desc: ["ภูมิของผู้ที่ตายด้วยความโลภ", "มีความหิวโหยตลอดเวลา อาหารเป็นไฟ", "รูปร่างสูงใหญ่ ผอมโซ ทนทุกขเวทนา", "รอรับส่วนบุญกุศลที่ญาติอุทิศให้"] },
@@ -519,7 +593,6 @@
             scene.background = new THREE.Color(realm.color).multiplyScalar(0.15);
             pointLight.color.setHex(realm.color);
 
-            // เปลี่ยนวิดีโอ YouTube (บังคับใช้โดเมนจริงเพื่อเลี่ยงการบล็อก Localhost)
             const projectOrigin = "https://winaiac.github.io";
             iframe.src = `https://www.youtube.com/embed/${realm.yt}?autoplay=1&rel=0&origin=${projectOrigin}`;
 
@@ -533,7 +606,12 @@
 
             // loader.load(`models/${realm.glb}`, (gltf) => {
             //     currentLoadedModel = gltf.scene;
-            //     currentLoadedModel.position.set(0, 0.5, 0); 
+            //     const box = new THREE.Box3().setFromObject(currentLoadedModel);
+            //     const size = box.getSize(new THREE.Vector3());
+            //     const scaleFactor = 1.5 / size.y;
+            //     currentLoadedModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            //     const center = box.getCenter(new THREE.Vector3());
+            //     currentLoadedModel.position.set(-center.x * scaleFactor, 0.25, -center.z * scaleFactor);
             //     stageGroup.add(currentLoadedModel);
             // });
         }
