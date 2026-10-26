@@ -40,7 +40,6 @@
 
         #fullscreen-btn {
             position: absolute;
-            /* เปลี่ยนจาก top เป็น bottom และเว้นระยะจากขอบล่าง 95px เพื่อไม่ให้ทับเครดิต */
             bottom: 95px;
             right: var(--safe-side);
             padding: clamp(8px, 1.5vh, 10px) clamp(10px, 2vw, 15px);
@@ -81,6 +80,30 @@
             background-color: #f44336;
         }
 
+        /* สไตล์ของปุ่มวาร์ปไป 31 ภพภูมิ */
+        #warp-btn {
+            position: absolute;
+            bottom: clamp(20px, 4vh, 40px);
+            right: calc(var(--safe-side) + 120px);
+            padding: 12px 30px;
+            background-color: #9c27b0;
+            color: white;
+            border: 2px solid white;
+            border-radius: 25px;
+            cursor: pointer;
+            z-index: 999;
+            font-size: clamp(14px, 1.8vh, 16px);
+            font-weight: bold;
+            box-shadow: 0 0 15px #9c27b0;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+
+        #warp-btn:hover {
+            background-color: #ba68c8;
+            transform: scale(1.05);
+        }
+
         #credits {
             position: absolute;
             bottom: 25px;
@@ -119,12 +142,18 @@
                 font-size: 14px;
             }
 
-            /* ดันปุ่มขยายเต็มจอในมือถือขึ้นมาอีกนิด ป้องกันการซ้อนทับ */
             #fullscreen-btn {
                 bottom: 110px;
             }
 
-            /* ปรับกล่องเครดิตให้แสดงผลบนมือถือได้ดีขึ้น */
+            /* จัดตำแหน่งปุ่มวาร์ปในมือถือให้ไม่ทับปุ่มอื่นๆ */
+            #warp-btn {
+                bottom: 155px;
+                right: var(--safe-side);
+                padding: 10px 20px;
+                font-size: 14px;
+            }
+
             #credits {
                 max-width: 90vw;
             }
@@ -134,37 +163,40 @@
 
 <body>
     <!-- ========================================== -->
-    <!-- 1. ซ่อนกล่องสถานะเดิม (เพื่อให้ระบบคลิกที่นั่งเดิมยังทำงานได้โดยไม่พัง) -->
+    <!-- 1. แผ่นสีดำสำหรับทำ Transition เชื่อมไป 31 ภพภูมิ -->
+    <!-- ========================================== -->
+    <div id="fade-overlay"
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000000; z-index: 9999; pointer-events: none; transition: opacity 1s ease-in-out; opacity: 1;">
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 2. ซ่อนกล่องสถานะเดิม -->
     <!-- ========================================== -->
     <div id="user-info" style="display: none;">ชื่อผู้ใช้: กำลังโหลด...</div>
     <div id="schedule-status" style="display: none;">กำลังตรวจสอบเวลา...</div>
     <div id="seat-status" style="display: none;">สถานะ: คลิกเลือกเบาะ หรือคลิกจุดสีทองหน้าบอร์ด</div>
 
     <!-- ========================================== -->
-    <!-- 2. กล่อง UI สเตตัสใหม่ และ ปฏิทิน/นาฬิกา -->
+    <!-- 3. กล่อง UI สเตตัสใหม่ และ ปฏิทิน/นาฬิกา -->
     <!-- ========================================== -->
     <div id="hud-container"
         style="position: absolute; top: 20px; left: 20px; z-index: 100; display: flex; flex-direction: column; gap: 10px; pointer-events: none;">
 
-        <!-- บรรทัด 1: ชื่อผู้ใช้งาน (คงที่) -->
         <div id="user-profile"
             style="border: 1px solid #ffd700; border-radius: 4px; padding: 8px 12px; background: rgba(20, 10, 5, 0.85); color: #ffd700; font-family: 'Sarabun', sans-serif; font-weight: bold; width: fit-content; pointer-events: auto; font-size: 14px;">
             ผู้ใช้งาน: กำลังโหลด...
         </div>
 
-        <!-- บรรทัด 2: ข้อมูลห้องและจำนวนคน (คงที่ แสดงตลอดเวลา) -->
         <div id="server-status"
             style="border: 1px solid #4CAF50; border-radius: 4px; padding: 8px 12px; background: rgba(20, 10, 5, 0.85); color: #4CAF50; font-family: 'Sarabun', sans-serif; font-weight: bold; width: fit-content; pointer-events: auto; font-size: 14px;">
             กำลังเชื่อมต่อเซิร์ฟเวอร์...
         </div>
 
-        <!-- บรรทัด 3: ข้อมูลที่วนลูป (โหมด / สถานะ) -->
         <div id="rotating-status"
             style="border: 1px solid #00ffcc; border-radius: 4px; padding: 8px 12px; background: rgba(20, 10, 5, 0.85); color: #00ffcc; font-family: 'Sarabun', sans-serif; font-weight: bold; width: fit-content; transition: opacity 0.4s ease-in-out; pointer-events: auto; font-size: 14px;">
             กำลังโหลดข้อมูล...
         </div>
 
-        <!-- กล่องนาฬิกาและปฏิทินจันทรคติไทย -->
         <div id="datetime-box"
             style="border: 1px solid #ff9800; border-radius: 4px; padding: 10px 15px; background: rgba(20, 10, 5, 0.85); font-family: 'Sarabun', sans-serif; width: fit-content; margin-top: 5px; pointer-events: auto;">
             <div id="time-display"
@@ -183,6 +215,9 @@
             </div>
         </div>
     </div>
+
+    <!-- เพิ่มปุ่มวาร์ป -->
+    <button id="warp-btn">🌌 เข้าสู่นิทรรศการ 31 ภพภูมิ</button>
 
     <button id="fullscreen-btn">ขยายเต็มจอ</button>
     <button id="stand-btn">🚶 เดินกลับ</button>
@@ -211,13 +246,17 @@
         import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 
         // ==========================================
-        // ข้อมูลการตั้งค่า
-        // ==========================================
         // นำเข้าไฟล์ตั้งค่า (ดึงวิดีโอ, ข้อความบอร์ด, และปฏิทินจันทรคติ)
+        // ==========================================
         import { appConfig } from './config.js';
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
         import { getDatabase, ref, get, update, onValue, onDisconnect, increment } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
+
+        // เปิดแผ่นเฟดสีดำเมื่อโหลดหน้าเสร็จ
+        window.onload = () => {
+            setTimeout(() => { document.getElementById('fade-overlay').style.opacity = 0; }, 200);
+        };
 
         // ==========================================
         // ระบบ Firebase จัดการห้อง (Room Instancing)
@@ -238,17 +277,14 @@
         const ROOM_CAPACITY = 30; // ตั้งค่าจำนวนคนสูงสุดต่อห้อง
         let myRoomId = null;
 
-        // ตัวแปรสำหรับแสดงผล UI จำนวนคนแบบเรียลไทม์
         let globalUsersCount = 1;
         let roomUsersCount = 1;
         let currentRoomNum = "1";
-        let localBotCount = 0; // เพิ่มตัวแปรเก็บจำนวนบอทในเครื่อง
+        let localBotCount = 0;
 
         function updateServerStatusUI() {
-            // นำยอดคนจริงจาก Firebase มาบวกกับจำนวนบอท AI
             const totalGlobal = globalUsersCount + localBotCount;
             const totalRoom = roomUsersCount + localBotCount;
-
             document.getElementById('server-status').innerText = `🌐 รวมทุกห้อง: ${totalGlobal} คน | 🏠 ห้องที่ ${currentRoomNum} (${totalRoom}/${ROOM_CAPACITY} คน)`;
         }
 
@@ -275,7 +311,6 @@
             }
             myRoomId = targetRoom;
 
-            // ตรวจสอบห้อง และเรียกสร้างบอทเฉพาะห้องที่ 1 เท่านั้น
             if (myRoomId === 'room_1') {
                 spawnAIBots();
             }
@@ -304,9 +339,15 @@
         }
         joinMeditationRoom();
 
-        // ตั้งชื่อผู้ใช้งาน
-        const randomNum = Math.floor(Math.random() * 900) + 100;
-        const currentUserName = `กัลยาณมิตร${randomNum}`;
+        // ----------------------------------------------------
+        // ตั้งชื่อผู้ใช้งาน (ดึงจาก Session หรือสุ่มใหม่)
+        // ----------------------------------------------------
+        let currentUserName = sessionStorage.getItem('meditationUserName');
+        if (!currentUserName) {
+            const randomNum = Math.floor(Math.random() * 900) + 100;
+            currentUserName = `กัลยาณมิตร${randomNum}`;
+        }
+
         document.getElementById('user-info').innerText = `ผู้ใช้งาน: ${currentUserName}`;
         document.getElementById('user-profile').innerText = `ผู้ใช้งาน: ${currentUserName}`;
 
@@ -770,8 +811,8 @@
         function spawnAIBots() {
             const botCount = Math.floor(Math.random() * 3) + 3; // สุ่มเลข 3 ถึง 5
 
-            localBotCount = botCount; // บันทึกจำนวนบอทลงในตัวแปรส่วนกลาง
-            updateServerStatusUI(); // สั่งให้อัปเดต UI บนหน้าจอทันที
+            localBotCount = botCount;
+            updateServerStatusUI();
 
             const availableIndices = [...Array(cushionsList.length).keys()];
 
@@ -904,7 +945,6 @@
         // โค้ดระบบ UI วนลูปบรรทัดที่ 3
         // =========================================================
         const rotatingEl = document.getElementById('rotating-status');
-        // เอาเลขห้องและจำนวนคนออกจากการวนลูป ให้เหลือแค่ตารางเวลาและสถานะที่นั่ง
         const hiddenEls = ['schedule-status', 'seat-status'];
         const colors = ['#ffd700', '#00ffcc'];
         let currentStatusIndex = 0;
@@ -935,10 +975,8 @@
             const dateStr = now.toLocaleDateString('th-TH', options);
             document.getElementById('date-display').innerText = dateStr;
 
-            // ดึงฐานข้อมูลวันเริ่มต้นเดือนทางจันทรคติมาจาก config.js
             const realThaiCalendar = appConfig.thaiCalendar;
 
-            // ค้นหาเดือนปัจจุบันจากฐานข้อมูล
             let currentCycle = realThaiCalendar[0];
             for (let i = 0; i < realThaiCalendar.length; i++) {
                 const cycleDate = new Date(realThaiCalendar[i].d);
@@ -952,8 +990,7 @@
 
             const cycleStartDate = new Date(currentCycle.d);
             cycleStartDate.setHours(0, 0, 0, 0);
-            
-            // นับจำนวนวันที่ผ่านมาจากวันขึ้น 1 ค่ำ
+
             const diffTime = Math.abs(now - cycleStartDate);
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
@@ -963,17 +1000,13 @@
             let isHolyDay = false;
 
             if (day <= 15) {
-                // ช่วงข้างขึ้น
                 phase = `ขึ้น ${day} ค่ำ`;
                 isWaxing = true;
                 if (day === 8 || day === 15) isHolyDay = true;
             } else {
-                // ช่วงข้างแรม
                 day = day - 15;
                 phase = `แรม ${day} ค่ำ`;
                 isWaxing = false;
-                
-                // เช็กวันพระข้างแรม (แรม 8 ค่ำ และ แรม 14/15 ค่ำ ตามเดือนคู่-คี่)
                 if (day === 8 || day === (currentCycle.days - 15)) isHolyDay = true;
             }
 
@@ -984,7 +1017,6 @@
 
             document.getElementById('lunar-display').innerText = `ตรงกับ: ${phase} เดือน ${monthName}`;
 
-            // ตรวจสอบวันสำคัญทางพุทธศาสนา
             let importantDay = "";
             if (isWaxing && day === 15) {
                 if (currentLunarMonth === 3) importantDay = "วันมาฆบูชา";
@@ -996,7 +1028,6 @@
                 if (currentLunarMonth === 8) importantDay = "วันเข้าพรรษา";
             }
 
-            // แสดงผลป้ายแจ้งเตือน
             const holyDayEl = document.getElementById('holy-day-display');
             if (importantDay !== "") {
                 holyDayEl.innerText = `🌟 ${importantDay}`;
@@ -1011,6 +1042,23 @@
 
         setInterval(updateDateTime, 1000);
         updateDateTime();
+
+        // =========================================================
+        // โค้ดเชื่อมโยงไปยังหน้า 31 ภพภูมิ (pp31.html) แบบเนียนกริบ
+        // =========================================================
+        document.getElementById('warp-btn').addEventListener('click', () => {
+            // เก็บชื่อผู้ใช้ไว้ใช้ต่อที่หน้า pp31.html
+            sessionStorage.setItem('meditationUserName', currentUserName);
+
+            // สั่งเฟดหน้าจอเป็นสีดำ
+            const overlay = document.getElementById('fade-overlay');
+            overlay.style.opacity = 1;
+
+            // หน่วงเวลา 1 วินาทีให้เฟดเสร็จ แล้วเปลี่ยนหน้า
+            setTimeout(() => {
+                window.location.href = 'pp31.html';
+            }, 1000);
+        });
 
         function animate() {
             if (isTransitioning) {

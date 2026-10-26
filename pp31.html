@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>31 Realms of Existence - Exhibition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000000;
+            font-family: 'Sarabun', sans-serif;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #css-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        :root {
+            --safe-top: clamp(10px, 2vh, 20px);
+            --safe-side: clamp(10px, 2vw, 20px);
+        }
+
+        #fade-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000000;
+            z-index: 9999;
+            pointer-events: none;
+            transition: opacity 1s ease-in-out;
+            opacity: 1;
+        }
+
+        #hud-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .status-box {
+            border-radius: 4px;
+            padding: 8px 12px;
+            background: rgba(20, 10, 5, 0.85);
+            font-weight: bold;
+            width: fit-content;
+            pointer-events: auto;
+            font-size: 14px;
+        }
+
+        #credits {
+            position: absolute;
+            bottom: 25px;
+            right: var(--safe-side);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            text-align: right;
+            z-index: 999;
+            pointer-events: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        #realm-menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 500;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 30px;
+            border: 2px solid #b39ddb;
+            border-radius: 15px;
+            text-align: center;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        #realm-menu::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #realm-menu::-webkit-scrollbar-thumb {
+            background: #b39ddb;
+            border-radius: 4px;
+        }
+
+        .hierarchy-section {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .hierarchy-section:last-child {
+            border-bottom: none;
+        }
+
+        .hierarchy-section h3 {
+            margin: 0 0 15px 0;
+            letter-spacing: 1px;
+        }
+
+        .zone-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .zone-btn {
+            padding: 10px 15px;
+            font-family: 'Sarabun';
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .btn-intro {
+            background: #004d40;
+            color: #1de9b6;
+            border: 1px solid #1de9b6;
+            box-shadow: 0 0 5px rgba(29, 233, 182, 0.3);
+        }
+
+        .btn-arupa {
+            background: #0a0a0a;
+            color: #00e5ff;
+            border: 1px solid #00e5ff;
+            box-shadow: 0 0 5px rgba(0, 229, 255, 0.3);
+        }
+
+        .btn-rupa {
+            background: #ffffff;
+            color: #333;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+        }
+
+        .btn-kama {
+            background: #f57f17;
+            color: white;
+            border: 1px solid #fff59d;
+            box-shadow: 0 0 5px rgba(245, 127, 23, 0.5);
+        }
+
+        .btn-abaya {
+            background: #4a148c;
+            color: #ffb74d;
+            border: 1px solid #ffb74d;
+            box-shadow: 0 0 5px rgba(74, 20, 140, 0.5);
+        }
+
+        .zone-btn:hover {
+            transform: scale(1.05);
+            filter: brightness(1.3);
+        }
+
+        #back-to-meditation-btn {
+            position: absolute;
+            bottom: clamp(20px, 4vh, 40px);
+            left: var(--safe-side);
+            padding: 12px 30px;
+            background-color: #2196F3;
+            color: white;
+            border: 2px solid white;
+            border-radius: 25px;
+            cursor: pointer;
+            z-index: 999;
+            font-size: clamp(14px, 1.8vh, 16px);
+            font-weight: bold;
+            pointer-events: auto;
+        }
+
+        #return-lobby-btn {
+            display: none;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background-color: #ff9800;
+            color: white;
+            border: 2px solid white;
+            border-radius: 10px;
+            cursor: pointer;
+            z-index: 999;
+            font-family: 'Sarabun';
+            font-weight: bold;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="fade-overlay"></div>
+
+    <div id="hud-container">
+        <div id="user-profile" class="status-box" style="border: 1px solid #ffd700; color: #ffd700;">ผู้ใช้งาน:
+            กำลังโหลด...</div>
+        <div id="realm-status" class="status-box" style="border: 1px solid #00ffcc; color: #00ffcc;">โถงไตรภพ (Main
+            Lobby)</div>
+    </div>
+
+    <!-- UI หน้าต่างเลือกห้อง -->
+    <div id="realm-menu">
+        <h2 style="margin: 0; color: #e040fb;">🌌 นิทรรศการเสมือนจริง ๓๑ ภพภูมิ</h2>
+        <p style="margin: 0; font-size: 14px; color: #aaa;">เลือกระดับภพภูมิเพื่อเข้าชมโมเดล 3 มิติและรับฟังคำบรรยาย</p>
+
+        <div class="hierarchy-section" style="padding-top: 10px;">
+            <div class="zone-container" id="zone-intro"></div>
+        </div>
+        <div class="hierarchy-section">
+            <h3 style="color: #00e5ff;">อรูปภูมิ ๔ (สูงสุด)</h3>
+            <div class="zone-container" id="zone-arupa"></div>
+        </div>
+        <div class="hierarchy-section">
+            <h3 style="color: #ffffff;">รูปภูมิ ๑๖</h3>
+            <div class="zone-container" id="zone-rupa"></div>
+        </div>
+        <div class="hierarchy-section">
+            <h3 style="color: #fff59d;">กามสุคติภูมิ ๗ (มนุษย์และสวรรค์)</h3>
+            <div class="zone-container" id="zone-kama"></div>
+        </div>
+        <div class="hierarchy-section" style="border-bottom: none;">
+            <h3 style="color: #ffb74d;">อบายภูมิ ๔ (ทุคติภูมิ)</h3>
+            <div class="zone-container" id="zone-abaya"></div>
+        </div>
+    </div>
+
+    <button id="return-lobby-btn">🚪 กลับหน้าเลือกภพภูมิ</button>
+    <button id="back-to-meditation-btn">🙏 กลับลานปฏิบัติธรรม</button>
+
+    <div id="credits">
+        พัฒนาโดย: วินัย ผันอากาศ<br>
+        WebXR - 31 Realms Expansion
+    </div>
+
+    <div id="css-container"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { VRButton } from 'three/addons/webxr/VRButton.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+
+        let currentUserName = sessionStorage.getItem('meditationUserName');
+        if (!currentUserName) {
+            currentUserName = `กัลยาณมิตร${Math.floor(Math.random() * 900) + 100}`;
+        }
+        document.getElementById('user-profile').innerText = `ผู้ใช้งาน: ${currentUserName}`;
+
+        window.onload = () => {
+            setTimeout(() => { document.getElementById('fade-overlay').style.opacity = 0; }, 200);
+        };
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x05050a);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.8, 3.5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
+        document.body.appendChild(VRButton.createButton(renderer));
+
+        const cssRenderer = new CSS3DRenderer();
+        cssRenderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('css-container').appendChild(cssRenderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 1.5, -4.0);
+
+        controls.enablePan = false;
+        controls.minDistance = 1.5;
+        controls.maxDistance = 8.0;
+        controls.maxPolarAngle = Math.PI / 2;
+        controls.minPolarAngle = 0;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 1, 20);
+        pointLight.position.set(0, 5, 2);
+        scene.add(pointLight);
+
+        // --- MASTER ROOM ENVIRONMENT ---
+        const masterRoomGroup = new THREE.Group();
+        scene.add(masterRoomGroup);
+        masterRoomGroup.visible = false;
+
+        // 1. แท่นแสดงโมเดล 3D (ตรงกลาง)
+        const stageGroup = new THREE.Group();
+        stageGroup.position.set(0, 0, -4.5);
+        masterRoomGroup.add(stageGroup);
+
+        const stageMesh = new THREE.Mesh(
+            new THREE.CylinderGeometry(2, 2.2, 0.5, 32),
+            new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.2, metalness: 0.8 })
+        );
+        stageMesh.position.y = 0.25;
+        stageGroup.add(stageMesh);
+
+        // 2. จอภาพ CSS3D สำหรับ YouTube (ซ้าย)
+        const tvGroup = new THREE.Group();
+        tvGroup.position.set(-4.8, 2.5, -3.5);
+        tvGroup.rotation.y = Math.PI / 8;
+        masterRoomGroup.add(tvGroup);
+
+        const tvFrame = new THREE.Mesh(
+            new THREE.BoxGeometry(6.2, 3.6, 0.1),
+            new THREE.MeshStandardMaterial({ color: 0x111111 })
+        );
+        tvGroup.add(tvFrame);
+
+        const div = document.createElement('div');
+        div.style.width = '600px';
+        div.style.height = '340px';
+        div.style.backgroundColor = '#000';
+
+        // --- ส่วนที่อัปเดตใหม่เพื่อแก้ปัญหาเล่นไม่ได้ ---
+        const iframe = document.createElement('iframe');
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        // เพิ่ม web-share
+        iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+        // เพิ่ม referrerpolicy ตามที่คุณส่งมา
+        iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+        iframe.allowFullscreen = true;
+        div.appendChild(iframe);
+
+        const cssObject = new CSS3DObject(div);
+        cssObject.position.set(0, 0, 0.06);
+        cssObject.scale.set(0.01, 0.01, 0.01);
+        tvGroup.add(cssObject);
+
+        // 3. ป้ายไม้บอกข้อมูลประจำภพภูมิ (ขวา)
+        const infoBoardGroup = new THREE.Group();
+        infoBoardGroup.position.set(4.8, 2.2, -3.5);
+        infoBoardGroup.rotation.y = -Math.PI / 8;
+        masterRoomGroup.add(infoBoardGroup);
+
+        const boardFrame = new THREE.Mesh(
+            new THREE.BoxGeometry(3.2, 4.2, 0.1),
+            new THREE.MeshStandardMaterial({ color: 0x4a2b18, roughness: 1.0 })
+        );
+        infoBoardGroup.add(boardFrame);
+
+        const boardCanvas = document.createElement('canvas');
+        boardCanvas.width = 600;
+        boardCanvas.height = 800;
+        const boardCtx = boardCanvas.getContext('2d');
+        const boardTexture = new THREE.CanvasTexture(boardCanvas);
+        boardTexture.colorSpace = THREE.SRGBColorSpace;
+
+        const boardPlane = new THREE.Mesh(
+            new THREE.PlaneGeometry(3.0, 4.0),
+            new THREE.MeshBasicMaterial({ map: boardTexture })
+        );
+        boardPlane.position.set(0, 0, 0.06);
+        infoBoardGroup.add(boardPlane);
+
+        function updateInfoBoard(realm) {
+            const woodGrad = boardCtx.createLinearGradient(0, 0, 0, 800);
+            woodGrad.addColorStop(0, '#5c3a21');
+            woodGrad.addColorStop(0.4, '#422815');
+            woodGrad.addColorStop(0.8, '#5c3a21');
+            woodGrad.addColorStop(1, '#2e1b0d');
+            boardCtx.fillStyle = woodGrad;
+            boardCtx.fillRect(0, 0, 600, 800);
+
+            boardCtx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            for (let i = 0; i < 600; i += 8) {
+                if (Math.random() > 0.2) {
+                    boardCtx.fillRect(i, 0, Math.random() * 3 + 1, 800);
+                }
+            }
+
+            boardCtx.strokeStyle = '#ffd700';
+            boardCtx.lineWidth = 4;
+            boardCtx.strokeRect(15, 15, 570, 770);
+
+            boardCtx.fillStyle = '#ffd700';
+            boardCtx.font = 'bold 42px Sarabun, sans-serif';
+            boardCtx.textAlign = 'center';
+            boardCtx.fillText(realm.name, 300, 80);
+
+            boardCtx.beginPath();
+            boardCtx.moveTo(100, 110);
+            boardCtx.lineTo(500, 110);
+            boardCtx.strokeStyle = '#ffd700';
+            boardCtx.lineWidth = 2;
+            boardCtx.stroke();
+
+            boardCtx.fillStyle = '#00ffcc';
+            boardCtx.font = 'bold 28px Sarabun, sans-serif';
+            boardCtx.fillText("คุณสมบัติและสภาพความเป็นอยู่", 300, 165);
+
+            boardCtx.fillStyle = '#ffffff';
+            boardCtx.font = '26px Sarabun, sans-serif';
+            boardCtx.textAlign = 'left';
+
+            if (realm.desc) {
+                realm.desc.forEach((line, index) => {
+                    boardCtx.fillStyle = '#ffb74d';
+                    boardCtx.fillText("✦", 40, 230 + (index * 45));
+                    boardCtx.fillStyle = '#ffffff';
+                    boardCtx.fillText(line, 75, 230 + (index * 45));
+                });
+            }
+
+            boardTexture.needsUpdate = true;
+        }
+
+        // --- ฐานข้อมูล 31 ภพภูมิ (ดึงวิดีโอจาก note.html) ---
+        const realmsConfig = [
+            // ส่วนอินโทร
+            { id: 99, name: "ภาพรวม ๓๑ ภพภูมิ", zone: "intro", color: 0x004d40, glb: "overview.glb", yt: "TLA_WmhbJPQ", desc: ["สังสารวัฏและที่อยู่ของสรรพสัตว์", "อธิบายโครงสร้างไตรภูมิพระร่วง", "แสดงให้เห็นผลของการทำดีและทำชั่ว", "เป็นแผนที่ทางจิตวิญญาณของพุทธศาสนา"] },
+
+            // อรูปภูมิ
+            { id: 28, name: "อรูปภูมิ", zone: "arupa", color: 0x00ffff, glb: "abstract.glb", yt: "0bhmtvfULcY", desc: ["ภูมิของผู้ที่เข้าถึงความว่างเปล่า", "ไม่มีรูปร่าง มีเพียงจิตและเจตสิก", "มีอายุยืนยาวมหาศาล", "สถิตอยู่ในความสงบอันประณีตสูงสุด"] },
+
+            // รูปภูมิ
+            { id: 12, name: "รูปภูมิ", zone: "rupa", color: 0xffffff, glb: "brahma.glb", yt: "Uh6E4hpato8", desc: ["ภูมิของพระพรหมผู้บรรลุรูปฌาน", "มีรัศมีกายสว่างไสวงดงาม", "ไม่มีความกังวลในเรื่องกามคุณ", "อิ่มเอิบด้วยปีติและสุขอันบริสุทธิ์"] },
+
+            // กามสุคติภูมิ
+            { id: 6, name: "สวรรค์ ๖ ชั้น", zone: "kama", color: 0xffd700, glb: "heaven.glb", yt: "Zk6r7yFeVE4", desc: ["เทวภูมิ ๖ ชั้น ที่สถิตของทวยเทพ", "มีวิมานทองและสวนสวรรค์ตระการตา", "อายุขัยยืนยาว เสวยทิพยสมบัติ", "เกิดจากการทำกุศลกรรมบถ ๑๐"] },
+            { id: 5, name: "มนุษยภูมิ + ทวีปทั้ง ๔", zone: "kama", color: 0x4CAF50, glb: "human.glb", yt: "VA6O-RGu0hE", desc: ["ภูมิที่ปะปนด้วยความสุขและความทุกข์", "เป็นสถานที่หลักสำหรับสร้างบุญบารมี", "มีโอกาสบรรลุธรรมได้มากที่สุด", "เป็นศูนย์กลางของวัฏสงสาร"] },
+
+            // อบายภูมิ
+            { id: 4.1, name: "สำนักพระยายมราช", zone: "abaya", color: 0x4a148c, glb: "yamaraja.glb", yt: "os0QgFpd0jc", desc: ["สถานที่พิพากษาดวงวิญญาณ", "พระยายมราชซักถามเทวทูตทั้ง ๕", "เพื่อให้ดวงวิญญาณระลึกถึงบุญกุศล", "ตัดสินอย่างยุติธรรมตามกฎแห่งกรรม"] },
+            { id: 4.2, name: "อสูรพิภพ", zone: "abaya", color: 0x5d4037, glb: "asura.glb", yt: "mzfPlNM8a58", desc: ["ภูมิของอสุรกาย", "มักมีความริษยาและมิจฉาทิฏฐิ", "ต้องทนทุกข์เพราะความหิวและความโกรธ", "มักอาศัยอยู่ใต้เขาพระสุเมรุ"] },
+            { id: 3, name: "เปรตภูมิ", zone: "abaya", color: 0x8b0000, glb: "preta.glb", yt: "Zmqs1bUfM44", desc: ["ภูมิของผู้ที่ตายด้วยความโลภ", "มีความหิวโหยตลอดเวลา อาหารเป็นไฟ", "รูปร่างสูงใหญ่ ผอมโซ ทนทุกขเวทนา", "รอรับส่วนบุญกุศลที่ญาติอุทิศให้"] },
+            { id: 2, name: "ติรัจฉานภูมิ", zone: "abaya", color: 0x8d6e63, glb: "animal.glb", yt: "Utbc7_EAgUc", desc: ["ภูมิของสัตว์เดรัจฉาน", "มีความเป็นอยู่ตามสัญชาตญาณ", "ต้องดิ้นรนเอาชีวิตรอดตลอดเวลา", "เกิดจากความหลง (โมหะ) เป็นหลัก"] },
+            { id: 1.1, name: "นรกขุมที่ ๑ ถึง ๔", zone: "abaya", color: 0xff3300, glb: "hell1.glb", yt: "Yud_Z2Gj9LY", desc: ["สัญชีวนรก ถึง โรรุวนรก", "รับผลกรรมจากการฆ่าสัตว์ ลักทรัพย์ ผิดกาม", "ถูกลงทัณฑ์ด้วยไฟนรกและอาวุธนานาประการ", "ต้องตายแล้วเกิดใหม่รับกรรมซ้ำๆ"] },
+            { id: 1.2, name: "นรกขุมที่ ๕ ถึง ๘", zone: "abaya", color: 0xff0000, glb: "hell2.glb", yt: "KYWtxpmh6LY", desc: ["มหาโรรุวนรก ถึง อเวจีนรก", "รับผลกรรมจากการดื่มสุราและทำกรรมหนัก", "ความทุกข์ทรมานแสนสาหัสและยาวนาน", "ขุมที่ ๘ (อเวจี) ไฟนรกร้อนแรงไม่มีวันดับ"] },
+            { id: 1.3, name: "นรกบ่าว (อุสสทนรก)", zone: "abaya", color: 0xbf360c, glb: "hell_sub.glb", yt: "_au0yCXyIIk", desc: ["นรกบริวารที่ล้อมรอบมหานรก", "ผู้ที่กรรมเบาบางลงจะย้ายมาขุมนี้", "ยังมีเครื่องทรมานเช่น ต้นงิ้ว และน้ำกรด", "ต้องชดใช้กรรมต่อไปจนกว่าจะหมดสิ้น"] },
+            { id: 1.4, name: "โลกันตนรก", zone: "abaya", color: 0x111111, glb: "hell_dark.glb", yt: "DJAp20_7W_s", desc: ["ขุมนรกที่อยู่นอกจักรวาล มืดมิดสนิท", "สำหรับผู้ทำมิจฉาทิฏฐิขั้นรุนแรง", "สัตว์นรกเกาะอยู่ตามหน้าผา หนาวเย็นยะเยือก", "เมื่อร่วงตกลงน้ำกรดจะละลายหายไปทันที"] }
+        ];
+
+        realmsConfig.forEach(realm => {
+            const btn = document.createElement('button');
+            btn.className = `zone-btn btn-${realm.zone}`;
+            btn.innerText = realm.name;
+            btn.onclick = () => loadMasterRoom(realm);
+            const container = document.getElementById(`zone-${realm.zone}`);
+            if (container) container.appendChild(btn);
+        });
+
+        const loader = new GLTFLoader();
+        let currentLoadedModel = null;
+
+        function disposeHierarchy(node) {
+            for (let i = node.children.length - 1; i >= 0; i--) {
+                const child = node.children[i];
+                disposeHierarchy(child);
+                node.remove(child);
+            }
+            if (node.geometry) node.geometry.dispose();
+            if (node.material) {
+                if (Array.isArray(node.material)) node.material.forEach(mat => mat.dispose());
+                else node.material.dispose();
+            }
+        }
+
+        function loadMasterRoom(realm) {
+            document.getElementById('realm-menu').style.display = 'none';
+            document.getElementById('return-lobby-btn').style.display = 'block';
+
+            masterRoomGroup.visible = true;
+
+            document.getElementById('realm-status').innerText = `กำลังชม: ${realm.name}`;
+            document.getElementById('realm-status').style.color = `#${realm.color.toString(16).padStart(6, '0')}`;
+
+            scene.background = new THREE.Color(realm.color).multiplyScalar(0.15);
+            pointLight.color.setHex(realm.color);
+
+            // เปลี่ยนวิดีโอ YouTube (บังคับใช้โดเมนจริงเพื่อเลี่ยงการบล็อก Localhost)
+            const projectOrigin = "https://winaiac.github.io";
+            iframe.src = `https://www.youtube.com/embed/${realm.yt}?autoplay=1&rel=0&origin=${projectOrigin}`;
+
+            updateInfoBoard(realm);
+
+            if (currentLoadedModel) {
+                disposeHierarchy(currentLoadedModel);
+                stageGroup.remove(currentLoadedModel);
+                currentLoadedModel = null;
+            }
+
+            // loader.load(`models/${realm.glb}`, (gltf) => {
+            //     currentLoadedModel = gltf.scene;
+            //     currentLoadedModel.position.set(0, 0.5, 0); 
+            //     stageGroup.add(currentLoadedModel);
+            // });
+        }
+
+        document.getElementById('return-lobby-btn').addEventListener('click', () => {
+            document.getElementById('realm-menu').style.display = 'flex';
+            document.getElementById('return-lobby-btn').style.display = 'none';
+
+            masterRoomGroup.visible = false;
+            iframe.src = "";
+
+            scene.background = new THREE.Color(0x05050a);
+            document.getElementById('realm-status').innerText = `โถงไตรภพ (Main Lobby)`;
+            document.getElementById('realm-status').style.color = `#00ffcc`;
+
+            camera.position.set(0, 1.8, 3.5);
+            controls.target.set(0, 1.5, -4.0);
+        });
+
+        document.getElementById('back-to-meditation-btn').addEventListener('click', () => {
+            const overlay = document.getElementById('fade-overlay');
+            overlay.style.opacity = 1;
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 1000);
+        });
+
+        function animate() {
+            controls.update();
+            renderer.render(scene, camera);
+            cssRenderer.render(scene, camera);
+
+            if (currentLoadedModel) {
+                currentLoadedModel.rotation.y += 0.003;
+            }
+        }
+        renderer.setAnimationLoop(animate);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            cssRenderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+
+</html>
