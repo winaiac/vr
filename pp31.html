@@ -31,6 +31,7 @@
             height: 100%;
             pointer-events: none;
             z-index: 2;
+            display: none;
         }
 
         :root {
@@ -47,7 +48,7 @@
             background: #000000;
             z-index: 9999;
             pointer-events: none;
-            transition: opacity 1s ease-in-out;
+            transition: opacity 0.8s ease-in-out;
             opacity: 1;
         }
 
@@ -86,13 +87,54 @@
             border-radius: 8px;
         }
 
+        /* กล่องคำแนะนำ ASWD ซ่อน/โชว์ อัตโนมัติ */
+        #controls-hint {
+            position: absolute;
+            bottom: 80px;
+            left: var(--safe-side);
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            z-index: 999;
+            pointer-events: none;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 8px 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            opacity: 0;
+            /* เริ่มต้นให้จางหายไว้ก่อน */
+            transition: opacity 1s ease-in-out;
+            display: none;
+            /* ใช้ตอนที่ไม่ควรแสดงเลย เช่น อยู่หน้าล็อบบี้ */
+        }
+
+        /* ปุ่มขยายเต็มจอ (สไตล์เดียวกับ index.html) */
+        #fullscreen-btn {
+            position: absolute;
+            bottom: 95px;
+            right: var(--safe-side);
+            padding: clamp(8px, 1.5vh, 10px) clamp(10px, 2vw, 15px);
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            border: 1px solid white;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 999;
+            font-size: clamp(12px, 1.5vh, 14px);
+            pointer-events: auto;
+            transition: background 0.3s;
+        }
+
+        #fullscreen-btn:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
         #realm-menu {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 500;
-            background: rgba(10, 10, 15, 0.95);
+            background: rgba(10, 10, 15, 0.85);
             padding: 30px;
             border: 2px solid #b39ddb;
             border-radius: 15px;
@@ -105,6 +147,7 @@
             width: 90%;
             max-height: 85vh;
             overflow-y: auto;
+            backdrop-filter: blur(5px);
         }
 
         #realm-menu::-webkit-scrollbar {
@@ -221,6 +264,23 @@
             font-weight: bold;
             pointer-events: auto;
         }
+
+        @media (max-width: 768px) {
+            #hud-container {
+                top: 10px !important;
+                left: 10px !important;
+            }
+
+            #fullscreen-btn {
+                bottom: 110px;
+            }
+
+            #controls-hint {
+                bottom: 100px;
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+        }
     </style>
 </head>
 
@@ -236,15 +296,14 @@
             Lobby)</div>
     </div>
 
+    <div id="controls-hint">🎮 คลิกเมาส์ค้างเพื่อหมุนกล้อง | ⌨️ W A S D เพื่อเดิน</div>
+
     <!-- UI หน้าต่างเลือกห้อง -->
     <div id="realm-menu">
         <h2 style="margin: 0; color: #e040fb;">🌌 นิทรรศการเสมือนจริง ๓๑ ภพภูมิ</h2>
-        <p style="margin: 0; font-size: 14px; color: #aaa;">เลือกระดับภพภูมิเพื่อเข้าชมโมเดล 3 มิติและรับฟังคำบรรยาย</p>
+        <p style="margin: 0; font-size: 14px; color: #ddd;">เลือกระดับภพภูมิเพื่อเข้าชมและรับฟังคำบรรยาย</p>
 
         <div class="hierarchy-section" style="padding-top: 10px;">
-            <div class="zone-container" id="zone-intro"></div>
-        </div>
-        <div class="hierarchy-section">
             <h3 style="color: #00e5ff;">อรูปภูมิ ๔ (สูงสุด)</h3>
             <div class="zone-container" id="zone-arupa"></div>
         </div>
@@ -264,6 +323,7 @@
 
     <button id="return-lobby-btn">🚪 กลับหน้าเลือกภพภูมิ</button>
     <button id="back-to-meditation-btn">🙏 กลับลานปฏิบัติธรรม</button>
+    <button id="fullscreen-btn">ขยายเต็มจอ</button>
 
     <div id="credits">
         พัฒนาโดย: วินัย ผันอากาศ<br>
@@ -358,7 +418,7 @@
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 1.8, 3.5);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.xr.enabled = true;
         document.body.appendChild(renderer.domElement);
@@ -372,18 +432,18 @@
         controls.target.set(0, 1.5, -4.0);
         controls.enablePan = false;
         controls.minDistance = 1.5;
-        controls.maxDistance = 8.0;
+        controls.maxDistance = 25.0;
         controls.maxPolarAngle = Math.PI / 2;
         controls.minPolarAngle = 0;
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
         const pointLight = new THREE.PointLight(0xffffff, 1, 20);
-        pointLight.position.set(0, 5, 2);
+        pointLight.position.set(0, 5, -4);
         scene.add(pointLight);
 
         // ==========================================
-        // ระบบพาร์ติเคิลหมอกควันเคลื่อนไหว (Dynamic Smoke Particles)
+        // ระบบพาร์ติเคิลหมอกควันเคลื่อนไหว
         // ==========================================
         const smokeCanvas = document.createElement('canvas');
         smokeCanvas.width = 128;
@@ -400,7 +460,7 @@
         const smokeCount = 150;
         const smokePos = new Float32Array(smokeCount * 3);
         const smokeSpeeds = new Float32Array(smokeCount);
-        const smokePhases = new Float32Array(smokeCount); // สำหรับการแกว่งซ้ายขวา
+        const smokePhases = new Float32Array(smokeCount);
 
         for (let i = 0; i < smokeCount; i++) {
             smokePos[i * 3] = (Math.random() - 0.5) * 15;
@@ -412,12 +472,12 @@
 
         smokeGeo.setAttribute('position', new THREE.BufferAttribute(smokePos, 3));
         const smokeMat = new THREE.PointsMaterial({
-            size: 6, // ขนาดก้อนควัน
+            size: 6,
             map: smokeTexture,
             transparent: true,
             opacity: 0.5,
             depthWrite: false,
-            blending: THREE.AdditiveBlending // ทำให้ควันสว่างขึ้นเมื่อทับซ้อนกัน
+            blending: THREE.AdditiveBlending
         });
         const smokeParticles = new THREE.Points(smokeGeo, smokeMat);
         scene.add(smokeParticles);
@@ -429,34 +489,40 @@
         scene.add(masterRoomGroup);
         masterRoomGroup.visible = false;
 
-        // 1. แท่นแสดงโมเดล 3D (ตรงกลาง)
         const stageGroup = new THREE.Group();
         stageGroup.position.set(0, 0, -4.5);
         masterRoomGroup.add(stageGroup);
 
-        const stageMesh = new THREE.Mesh(
-            new THREE.CylinderGeometry(2, 2.2, 0.5, 32),
-            new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.2, metalness: 0.8 })
-        );
-        stageMesh.position.y = 0.25;
-        stageGroup.add(stageMesh);
+        const ringGeo = new THREE.TorusGeometry(2, 0.02, 16, 64);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.8 });
+        const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+        ringMesh.rotation.x = -Math.PI / 2;
+        ringMesh.position.y = 0.05;
+        stageGroup.add(ringMesh);
 
-        // 2. จอภาพ CSS3D สำหรับ YouTube (ซ้าย)
+        const discGeo = new THREE.CircleGeometry(1.98, 64);
+        const discMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.15, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+        const discMesh = new THREE.Mesh(discGeo, discMat);
+        discMesh.rotation.x = -Math.PI / 2;
+        discMesh.position.y = 0.05;
+        stageGroup.add(discMesh);
+
+
         const tvGroup = new THREE.Group();
         tvGroup.position.set(-4.8, 2.5, -3.5);
         tvGroup.rotation.y = Math.PI / 8;
         masterRoomGroup.add(tvGroup);
 
-        const tvFrame = new THREE.Mesh(
-            new THREE.BoxGeometry(6.2, 3.6, 0.1),
-            new THREE.MeshStandardMaterial({ color: 0x111111 })
-        );
-        tvGroup.add(tvFrame);
+        const tvEdges = new THREE.EdgesGeometry(new THREE.BoxGeometry(6.2, 3.6, 0.02));
+        const tvWireframe = new THREE.LineSegments(tvEdges, new THREE.LineBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.6 }));
+        tvGroup.add(tvWireframe);
 
         const div = document.createElement('div');
         div.style.width = '600px';
         div.style.height = '340px';
-        div.style.backgroundColor = '#000';
+        div.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        div.style.border = '1px solid rgba(0, 229, 255, 0.3)';
+        div.style.boxSizing = 'border-box';
 
         const iframe = document.createElement('iframe');
         iframe.style.width = '100%';
@@ -468,21 +534,14 @@
         div.appendChild(iframe);
 
         const cssObject = new CSS3DObject(div);
-        cssObject.position.set(0, 0, 0.06);
+        cssObject.position.set(0, 0, 0.02);
         cssObject.scale.set(0.01, 0.01, 0.01);
         tvGroup.add(cssObject);
 
-        // 3. ป้ายไม้บอกข้อมูลประจำภพภูมิ (ขวา)
         const infoBoardGroup = new THREE.Group();
         infoBoardGroup.position.set(4.8, 2.2, -3.5);
         infoBoardGroup.rotation.y = -Math.PI / 8;
         masterRoomGroup.add(infoBoardGroup);
-
-        const boardFrame = new THREE.Mesh(
-            new THREE.BoxGeometry(3.2, 4.2, 0.1),
-            new THREE.MeshStandardMaterial({ color: 0x4a2b18, roughness: 1.0 })
-        );
-        infoBoardGroup.add(boardFrame);
 
         const boardCanvas = document.createElement('canvas');
         boardCanvas.width = 600;
@@ -493,64 +552,77 @@
 
         const boardPlane = new THREE.Mesh(
             new THREE.PlaneGeometry(3.0, 4.0),
-            new THREE.MeshBasicMaterial({ map: boardTexture })
+            new THREE.MeshBasicMaterial({
+                map: boardTexture,
+                transparent: true,
+                opacity: 0.9,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            })
         );
-        boardPlane.position.set(0, 0, 0.06);
         infoBoardGroup.add(boardPlane);
 
         function updateInfoBoard(realm) {
-            const woodGrad = boardCtx.createLinearGradient(0, 0, 0, 800);
-            woodGrad.addColorStop(0, '#5c3a21');
-            woodGrad.addColorStop(0.4, '#422815');
-            woodGrad.addColorStop(0.8, '#5c3a21');
-            woodGrad.addColorStop(1, '#2e1b0d');
-            boardCtx.fillStyle = woodGrad;
+            boardCtx.clearRect(0, 0, 600, 800);
+            boardCtx.fillStyle = 'rgba(10, 15, 25, 0.65)';
             boardCtx.fillRect(0, 0, 600, 800);
-
-            boardCtx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-            for (let i = 0; i < 600; i += 8) {
-                if (Math.random() > 0.2) { boardCtx.fillRect(i, 0, Math.random() * 3 + 1, 800); }
-            }
-
-            boardCtx.strokeStyle = '#ffd700';
-            boardCtx.lineWidth = 4;
+            boardCtx.shadowColor = '#00e5ff';
+            boardCtx.shadowBlur = 15;
+            boardCtx.strokeStyle = 'rgba(0, 229, 255, 0.8)';
+            boardCtx.lineWidth = 3;
             boardCtx.strokeRect(15, 15, 570, 770);
-
-            boardCtx.fillStyle = '#ffd700';
+            boardCtx.shadowBlur = 0;
+            boardCtx.strokeStyle = 'rgba(0, 229, 255, 0.3)';
+            boardCtx.lineWidth = 1;
+            boardCtx.strokeRect(25, 25, 550, 750);
+            boardCtx.shadowColor = realm.color ? `#${realm.color.toString(16).padStart(6, '0')}` : '#00e5ff';
+            boardCtx.shadowBlur = 10;
+            boardCtx.fillStyle = '#ffffff';
             boardCtx.font = 'bold 42px Sarabun, sans-serif';
             boardCtx.textAlign = 'center';
-            boardCtx.fillText(realm.name, 300, 80);
-
+            boardCtx.fillText(realm.name, 300, 90);
+            boardCtx.shadowBlur = 0;
             boardCtx.beginPath();
-            boardCtx.moveTo(100, 110);
-            boardCtx.lineTo(500, 110);
-            boardCtx.strokeStyle = '#ffd700';
+            boardCtx.moveTo(100, 120);
+            boardCtx.lineTo(500, 120);
+            boardCtx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
             boardCtx.lineWidth = 2;
             boardCtx.stroke();
-
-            boardCtx.fillStyle = '#00ffcc';
+            boardCtx.fillStyle = '#00e5ff';
             boardCtx.font = 'bold 28px Sarabun, sans-serif';
-            boardCtx.fillText("คุณสมบัติและสภาพความเป็นอยู่", 300, 165);
-
-            boardCtx.fillStyle = '#ffffff';
+            boardCtx.fillText("STATUS & DATA", 300, 170);
+            boardCtx.fillStyle = '#e0e0e0';
             boardCtx.font = '26px Sarabun, sans-serif';
             boardCtx.textAlign = 'left';
-
             if (realm.desc) {
                 realm.desc.forEach((line, index) => {
-                    boardCtx.fillStyle = '#ffb74d';
-                    boardCtx.fillText("✦", 40, 230 + (index * 45));
-                    boardCtx.fillStyle = '#ffffff';
-                    boardCtx.fillText(line, 75, 230 + (index * 45));
+                    boardCtx.fillStyle = '#00e5ff';
+                    boardCtx.fillText("⯈", 50, 240 + (index * 50));
+                    boardCtx.fillStyle = '#e0e0e0';
+                    boardCtx.fillText(line, 85, 240 + (index * 50));
                 });
             }
-
             boardTexture.needsUpdate = true;
         }
 
-        // --- ฐานข้อมูล 31 ภพภูมิ ---
+        const textureLoader = new THREE.TextureLoader();
+        function setLobbyBackground() {
+            textureLoader.load('textures/lobby.jpg',
+                (texture) => {
+                    texture.mapping = THREE.EquirectangularReflectionMapping;
+                    texture.colorSpace = THREE.SRGBColorSpace;
+                    scene.background = texture;
+                },
+                undefined,
+                (err) => console.error("Error loading lobby.jpg:", err)
+            );
+            scene.fog = null;
+            smokeParticles.visible = false;
+        }
+
+        setLobbyBackground();
+
         const realmsConfig = [
-            { id: 99, name: "ภาพรวม ๓๑ ภพภูมิ", zone: "intro", color: 0x004d40, glb: "overview.glb", yt: "TLA_WmhbJPQ", desc: ["สังสารวัฏและที่อยู่ของสรรพสัตว์", "อธิบายโครงสร้างไตรภูมิพระร่วง", "แสดงให้เห็นผลของการทำดีและทำชั่ว", "เป็นแผนที่ทางจิตวิญญาณของพุทธศาสนา"] },
             { id: 28, name: "อรูปภูมิ", zone: "arupa", color: 0x00ffff, glb: "abstract.glb", yt: "0bhmtvfULcY", desc: ["ภูมิของผู้ที่เข้าถึงความว่างเปล่า", "ไม่มีรูปร่าง มีเพียงจิตและเจตสิก", "มีอายุยืนยาวมหาศาล", "สถิตอยู่ในความสงบอันประณีตสูงสุด"] },
             { id: 12, name: "รูปภูมิ", zone: "rupa", color: 0xffffff, glb: "brahma.glb", yt: "Uh6E4hpato8", desc: ["ภูมิของพระพรหมผู้บรรลุรูปฌาน", "มีรัศมีกายสว่างไสวงดงาม", "ไม่มีความกังวลในเรื่องกามคุณ", "อิ่มเอิบด้วยปีติและสุขอันบริสุทธิ์"] },
             { id: 6, name: "สวรรค์ ๖ ชั้น", zone: "kama", color: 0xffd700, glb: "heaven.glb", yt: "Zk6r7yFeVE4", desc: ["เทวภูมิ ๖ ชั้น ที่สถิตของทวยเทพ", "มีวิมานทองและสวนสวรรค์ตระการตา", "อายุขัยยืนยาว เสวยทิพยสมบัติ", "เกิดจากการทำกุศลกรรมบถ ๑๐"] },
@@ -577,6 +649,61 @@
         const loader = new GLTFLoader();
         let currentLoadedModel = null;
         let currentActiveZone = "";
+        const clock = new THREE.Clock();
+        let mixer = null;
+
+        // ==========================================
+        // ระบบคำแนะนำการกดปุ่ม (Controls Hint Auto-Hide)
+        // ==========================================
+        const controlsHint = document.getElementById('controls-hint');
+        let hideHintTimeout = null;
+
+        function showHintTemporarily() {
+            // โชว์เฉพาะตอนเข้าดูห้องต่างๆ (ไม่อยู่ในหน้าโถง)
+            if (masterRoomGroup.visible) {
+                controlsHint.style.display = 'block';
+                controlsHint.style.opacity = 1;
+
+                if (hideHintTimeout) clearTimeout(hideHintTimeout);
+
+                hideHintTimeout = setTimeout(() => {
+                    controlsHint.style.opacity = 0;
+                    // ให้ซ่อน element ไปเลยหลังจากจางหายสนิท เพื่อไม่ให้กวนการคลิก
+                    setTimeout(() => { if (controlsHint.style.opacity == 0) controlsHint.style.display = 'none'; }, 1000);
+                }, 6000);
+            }
+        }
+
+        // ดักจับการขยับเมาส์ พิมพ์ หรือแตะหน้าจอ
+        window.addEventListener('mousemove', showHintTemporarily);
+        window.addEventListener('keydown', showHintTemporarily);
+        window.addEventListener('touchstart', showHintTemporarily);
+
+        // ==========================================
+        // ระบบควบคุมการเดินด้วยปุ่ม W A S D
+        // ==========================================
+        const moveState = { forward: false, backward: false, left: false, right: false };
+        const walkSpeed = 0.08;
+
+        window.addEventListener('keydown', (event) => {
+            if (masterRoomGroup.visible) {
+                switch (event.code) {
+                    case 'KeyW': moveState.forward = true; break;
+                    case 'KeyS': moveState.backward = true; break;
+                    case 'KeyA': moveState.left = true; break;
+                    case 'KeyD': moveState.right = true; break;
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (event) => {
+            switch (event.code) {
+                case 'KeyW': moveState.forward = false; break;
+                case 'KeyS': moveState.backward = false; break;
+                case 'KeyA': moveState.left = false; break;
+                case 'KeyD': moveState.right = false; break;
+            }
+        });
 
         function disposeHierarchy(node) {
             for (let i = node.children.length - 1; i >= 0; i--) {
@@ -592,72 +719,139 @@
         }
 
         function loadMasterRoom(realm) {
-            document.getElementById('realm-menu').style.display = 'none';
-            document.getElementById('return-lobby-btn').style.display = 'block';
+            // เอฟเฟกต์ Transition เฟดเป็นสีดำก่อน
+            const overlay = document.getElementById('fade-overlay');
+            overlay.style.opacity = 1;
 
-            masterRoomGroup.visible = true;
+            setTimeout(() => {
+                // งานทุกอย่างที่เปลี่ยนฉาก จะทำตอนจอเป็นสีดำสนิท
+                document.getElementById('realm-menu').style.display = 'none';
+                document.getElementById('return-lobby-btn').style.display = 'block';
 
-            document.getElementById('realm-status').innerText = `กำลังชม: ${realm.name}`;
-            document.getElementById('realm-status').style.color = `#${realm.color.toString(16).padStart(6, '0')}`;
+                document.getElementById('css-container').style.display = 'block';
+                masterRoomGroup.visible = true;
 
-            scene.background = new THREE.Color(realm.color).multiplyScalar(0.15);
-            pointLight.color.setHex(realm.color);
+                // รีเซ็ตการตั้งค่าโชว์ Hint
+                showHintTemporarily();
 
-            // เซ็ตการทำงานของหมอกและแสงตามโซน
-            currentActiveZone = realm.zone;
-            if (realm.zone === 'abaya') {
-                scene.fog = new THREE.FogExp2(realm.color, 0.06);
-                smokeParticles.visible = true;
-                smokeMat.color.setHex(realm.color); // ควันสีแดง
-            } else if (realm.zone === 'arupa') {
-                scene.fog = new THREE.FogExp2(realm.color, 0.03);
-                smokeParticles.visible = true;
-                smokeMat.color.setHex(realm.color); // ควันสีฟ้า
-            } else {
-                scene.fog = null;
-                smokeParticles.visible = false;
-            }
+                const colorHex = `#${realm.color.toString(16).padStart(6, '0')}`;
+                document.getElementById('realm-status').innerText = `กำลังชม: ${realm.name}`;
+                document.getElementById('realm-status').style.color = colorHex;
 
-            const projectOrigin = "https://winaiac.github.io";
-            iframe.src = `https://www.youtube.com/embed/${realm.yt}?autoplay=1&rel=0&origin=${projectOrigin}`;
+                ringMesh.material.color.setHex(realm.color);
+                discMesh.material.color.setHex(realm.color);
+                tvWireframe.material.color.setHex(realm.color);
 
-            updateInfoBoard(realm);
+                pointLight.color.setHex(realm.color);
+                currentActiveZone = realm.zone;
 
-            if (currentLoadedModel) {
-                disposeHierarchy(currentLoadedModel);
-                stageGroup.remove(currentLoadedModel);
-                currentLoadedModel = null;
-            }
+                scene.background = new THREE.Color(0x000000);
 
-            // loader.load(`models/${realm.glb}`, (gltf) => {
-            //     currentLoadedModel = gltf.scene;
-            //     const box = new THREE.Box3().setFromObject(currentLoadedModel);
-            //     const size = box.getSize(new THREE.Vector3());
-            //     const scaleFactor = 1.5 / size.y;
-            //     currentLoadedModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
-            //     const center = box.getCenter(new THREE.Vector3());
-            //     currentLoadedModel.position.set(-center.x * scaleFactor, 0.25, -center.z * scaleFactor);
-            //     stageGroup.add(currentLoadedModel);
-            // });
+                const loadPanorama = (texturePath, fogDensity, enableSmoke) => {
+                    textureLoader.load(texturePath,
+                        (texture) => {
+                            texture.mapping = THREE.EquirectangularReflectionMapping;
+                            texture.colorSpace = THREE.SRGBColorSpace;
+                            scene.background = texture;
+                        },
+                        undefined,
+                        (err) => console.error(`Error loading ${texturePath}:`, err)
+                    );
+
+                    if (fogDensity > 0) {
+                        scene.fog = new THREE.FogExp2(realm.color, fogDensity);
+                    } else {
+                        scene.fog = null;
+                    }
+
+                    smokeParticles.visible = enableSmoke;
+                    if (enableSmoke) smokeMat.color.setHex(realm.color);
+                };
+
+                if (realm.id === 28) {
+                    loadPanorama('textures/arpp.jpg', 0.01, true);
+                } else if (realm.id === 12) {
+                    loadPanorama('textures/rpp.jpg', 0, false);
+                } else if (realm.id === 6) {
+                    loadPanorama('textures/sawan.jpg', 0, false);
+                } else if (realm.id === 5) {
+                    loadPanorama('textures/manud.jpg', 0.005, true);
+                } else if (realm.id === 4.2) {
+                    loadPanorama('textures/asul.jpg', 0.015, true);
+                } else if (realm.id === 4.1) {
+                    loadPanorama('textures/yama.jpg', 0.015, true);
+                } else if (realm.id === 3) {
+                    loadPanorama('textures/pred.jpg', 0.015, true);
+                } else if (realm.id === 2) {
+                    loadPanorama('textures/animal.jpg', 0.015, true);
+                } else if (realm.id >= 1.1 && realm.id <= 1.4) {
+                    loadPanorama('textures/narok.jpg', 0.015, true);
+                } else if (realm.zone === 'abaya') {
+                    scene.background = new THREE.Color(realm.color).multiplyScalar(0.075);
+                    scene.fog = new THREE.FogExp2(realm.color, 0.03);
+                    smokeParticles.visible = true;
+                    smokeMat.color.setHex(realm.color);
+                } else {
+                    scene.background = new THREE.Color(realm.color).multiplyScalar(0.075);
+                    scene.fog = null;
+                    smokeParticles.visible = false;
+                }
+
+                const projectOrigin = "https://winaiac.github.io";
+                iframe.src = `https://www.youtube.com/embed/${realm.yt}?autoplay=1&rel=0&origin=${projectOrigin}`;
+
+                updateInfoBoard(realm);
+
+                if (currentLoadedModel) {
+                    disposeHierarchy(currentLoadedModel);
+                    stageGroup.remove(currentLoadedModel);
+                    currentLoadedModel = null;
+                }
+                if (mixer) {
+                    mixer.stopAllAction();
+                    mixer = null;
+                }
+
+                // สั่งจางจอสีดำออกให้กลับมามองเห็นฉาก
+                overlay.style.opacity = 0;
+            }, 800); // ดีเลย์ 0.8 วินาทีรอจอมืด
         }
 
+        // ==========================================
+        // ปุ่มกลับหน้าโถงแบบมี Transition เฟดดำ
+        // ==========================================
         document.getElementById('return-lobby-btn').addEventListener('click', () => {
-            document.getElementById('realm-menu').style.display = 'flex';
-            document.getElementById('return-lobby-btn').style.display = 'none';
+            const overlay = document.getElementById('fade-overlay');
+            overlay.style.opacity = 1;
 
-            masterRoomGroup.visible = false;
-            iframe.src = "";
+            setTimeout(() => {
+                document.getElementById('realm-menu').style.display = 'flex';
+                document.getElementById('return-lobby-btn').style.display = 'none';
 
-            scene.background = new THREE.Color(0x05050a);
-            currentActiveZone = "";
-            scene.fog = null;
-            smokeParticles.visible = false;
+                // ซ่อนคำแนะนำเด็ดขาดเมื่ออยู่หน้าโถง
+                controlsHint.style.opacity = 0;
+                controlsHint.style.display = 'none';
 
-            document.getElementById('realm-status').innerText = `โถงไตรภพ (Main Lobby)`;
-            document.getElementById('realm-status').style.color = `#00ffcc`;
+                document.getElementById('css-container').style.display = 'none';
+                masterRoomGroup.visible = false;
+                iframe.src = "";
+                currentActiveZone = "";
 
-            camera.position.set(0, 1.8, 3.5);
-            controls.target.set(0, 1.5, -4.0);
+                setLobbyBackground();
+
+                document.getElementById('realm-status').innerText = `โถงไตรภพ (Main Lobby)`;
+                document.getElementById('realm-status').style.color = `#00ffcc`;
+
+                camera.position.set(0, 1.8, 3.5);
+                controls.target.set(0, 1.5, -4.0);
+
+                moveState.forward = false;
+                moveState.backward = false;
+                moveState.left = false;
+                moveState.right = false;
+
+                overlay.style.opacity = 0;
+            }, 800);
         });
 
         document.getElementById('back-to-meditation-btn').addEventListener('click', () => {
@@ -668,33 +862,73 @@
             }, 1000);
         });
 
+        // ==========================================
+        // ระบบปุ่มขยายหน้าจอ (Fullscreen)
+        // ==========================================
+        const fsButton = document.getElementById('fullscreen-btn');
+        fsButton.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.body.requestFullscreen();
+                fsButton.innerText = "ย่อหน้าจอ";
+            } else {
+                document.exitFullscreen();
+                fsButton.innerText = "ขยายเต็มจอ";
+            }
+        });
+
         function animate() {
             controls.update();
+
+            if (masterRoomGroup.visible) {
+                stageGroup.rotation.y += 0.002;
+            }
+
+            if (masterRoomGroup.visible && (moveState.forward || moveState.backward || moveState.left || moveState.right)) {
+                const forward = new THREE.Vector3();
+                camera.getWorldDirection(forward);
+                forward.y = 0;
+                forward.normalize();
+
+                const right = new THREE.Vector3();
+                right.crossVectors(camera.up, forward).normalize();
+
+                const moveVector = new THREE.Vector3();
+                if (moveState.forward) moveVector.add(forward);
+                if (moveState.backward) moveVector.sub(forward);
+                if (moveState.left) moveVector.add(right);
+                if (moveState.right) moveVector.sub(right);
+
+                moveVector.normalize().multiplyScalar(walkSpeed);
+
+                camera.position.add(moveVector);
+                controls.target.add(moveVector);
+            }
+
             renderer.render(scene, camera);
             cssRenderer.render(scene, camera);
 
-            if (currentLoadedModel) {
-                currentLoadedModel.rotation.y += 0.003;
+            if (mixer) {
+                const delta = clock.getDelta();
+                mixer.update(delta);
+            } else if (currentLoadedModel) {
+                currentLoadedModel.rotation.y -= 0.002;
             }
 
-            // อัปเดตพาร์ติเคิลควันให้ขยับลอยตัว
             if (smokeParticles.visible) {
                 const positions = smokeParticles.geometry.attributes.position.array;
                 for (let i = 0; i < smokeCount; i++) {
-                    positions[i * 3 + 1] += smokeSpeeds[i]; // ลอยขึ้น
-                    positions[i * 3] += Math.sin(Date.now() * 0.001 + smokePhases[i]) * 0.005; // แกว่งซ้ายขวา
+                    positions[i * 3 + 1] += smokeSpeeds[i];
+                    positions[i * 3] += Math.sin(Date.now() * 0.001 + smokePhases[i]) * 0.005;
 
-                    // เมื่อลอยสูงเกินไป ให้วนกลับมาเกิดใหม่ข้างล่าง
                     if (positions[i * 3 + 1] > 6) {
                         positions[i * 3 + 1] = -3;
                         positions[i * 3] = (Math.random() - 0.5) * 15;
                     }
                 }
                 smokeParticles.geometry.attributes.position.needsUpdate = true;
-                smokeParticles.rotation.y += 0.001; // หมุนกลุ่มควันวนรอบห้องช้าๆ
+                smokeParticles.rotation.y += 0.001;
             }
 
-            // เอฟเฟกต์ไฟกะพริบสำหรับนรก
             if (currentActiveZone === 'abaya') {
                 pointLight.intensity = 1.0 + (Math.random() * 0.8);
             } else {

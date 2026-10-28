@@ -83,8 +83,11 @@
         /* สไตล์ของปุ่มวาร์ปไป 31 ภพภูมิ */
         #warp-btn {
             position: absolute;
-            bottom: clamp(20px, 4vh, 40px);
-            right: calc(var(--safe-side) + 120px);
+            /* ขยับให้สูงขึ้นจากขอบล่าง */
+            bottom: clamp(90px, 12vh, 120px);
+            /* จัดให้อยู่ตรงกลางหน้าจอแนวนอน */
+            left: 50%;
+            transform: translateX(-50%);
             padding: 12px 30px;
             background-color: #9c27b0;
             color: white;
@@ -101,7 +104,8 @@
 
         #warp-btn:hover {
             background-color: #ba68c8;
-            transform: scale(1.05);
+            /* เนื่องจากเราใช้ translateX(-50%) ไปแล้ว ต้องใส่กลับมาตอน hover ด้วย */
+            transform: translateX(-50%) scale(1.05);
         }
 
         #credits {
@@ -148,8 +152,10 @@
 
             /* จัดตำแหน่งปุ่มวาร์ปในมือถือให้ไม่ทับปุ่มอื่นๆ */
             #warp-btn {
-                bottom: 155px;
-                right: var(--safe-side);
+                bottom: 160px;
+                /* ขยับขึ้นมาหลบปุ่มเดินกลับและขยายจอ */
+                left: 50%;
+                transform: translateX(-50%);
                 padding: 10px 20px;
                 font-size: 14px;
             }
