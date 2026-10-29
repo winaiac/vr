@@ -141,12 +141,19 @@
             transition: all 0.3s;
         }
 
-        /* ปุ่มวาร์ป และปุ่มกลับลานธรรม (ใช้ตำแหน่งเดียวกัน สลับกันโชว์) */
+        /* ปุ่มวาร์ป, ปุ่มกลับลานธรรม และ ปุ่มแนะนำ VR */
+        #warp-btn,
+        #back-to-meditation-btn,
+        #vr-guide-btn {
+            left: 50%;
+            transform: translateX(-50%);
+            min-width: 280px;
+            /* บังคับความกว้างให้เท่ากันเป๊ะ */
+        }
+
         #warp-btn,
         #back-to-meditation-btn {
             bottom: clamp(90px, 12vh, 120px);
-            left: 50%;
-            transform: translateX(-50%);
         }
 
         #warp-btn {
@@ -162,6 +169,17 @@
 
         #warp-btn:hover,
         #back-to-meditation-btn:hover {
+            filter: brightness(1.2);
+            transform: translateX(-50%) scale(1.05);
+        }
+
+        /* ปุ่มแนะนำ VR จะอยู่ตำแหน่งต่ำกว่าปุ่มวาร์ปนิดหน่อย */
+        #vr-guide-btn {
+            bottom: clamp(30px, 5vh, 50px);
+            background-color: #ff5722;
+        }
+
+        #vr-guide-btn:hover {
             filter: brightness(1.2);
             transform: translateX(-50%) scale(1.05);
         }
@@ -378,6 +396,9 @@
     <button id="stand-btn" class="action-btn">🚶 ลุกจากที่นั่ง</button>
     <button id="return-lobby-btn">🚪 กลับหน้าเลือกภพภูมิ</button>
     <button id="fullscreen-btn" class="pulse-anim">ขยายเต็มจอ</button>
+    <!-- [เพิ่มใหม่] ปุ่มแนะนำ VR (จะแสดงเฉพาะเครื่องที่เข้า VR ไม่ได้) -->
+    <!-- เปลี่ยน style เป็น bottom: 25px และ left: 50% ให้มาอยู่ตรงกลางแทน -->
+    <button id="vr-guide-btn" class="action-btn pulse-anim" style="display: none;">👓 แนะนำวิธีใช้งาน VR</button>
 
     <div id="controls-hint">🎮 คลิกเมาส์ค้างเพื่อหมุนกล้อง | ⌨️ W A S D เพื่อเดิน</div>
 

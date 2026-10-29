@@ -34,9 +34,13 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
     const div = document.createElement('div');
     div.style.width = '600px'; div.style.height = '340px'; div.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
     div.style.display = 'none'; 
+    div.style.backfaceVisibility = 'hidden'; 
+    div.style.webkitBackfaceVisibility = 'hidden'; 
 
     const iframe = document.createElement('iframe');
     iframe.style.width = '100%'; iframe.style.height = '100%'; iframe.style.border = 'none'; iframe.allowFullscreen = true;
+    iframe.style.backfaceVisibility = 'hidden';
+    iframe.style.webkitBackfaceVisibility = 'hidden';
     div.appendChild(iframe);
     
     const cssObject = new CSS3DObject(div); cssObject.position.set(0, 0, 0.02); cssObject.scale.set(0.01, 0.01, 0.01); tvGroup.add(cssObject);
@@ -46,10 +50,10 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
     const infoBoardGroup = new THREE.Group(); infoBoardGroup.position.set(4.8, 2.2, -3.5); infoBoardGroup.rotation.y = -Math.PI / 8; masterRoomGroup.add(infoBoardGroup);
     const boardCanvas = document.createElement('canvas'); boardCanvas.width = 600; boardCanvas.height = 800;
     const boardCtx = boardCanvas.getContext('2d'); const boardTexture = new THREE.CanvasTexture(boardCanvas);
-    const boardPlane = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 4.0), new THREE.MeshBasicMaterial({ map: boardTexture, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
+    const boardPlane = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 4.0), new THREE.MeshBasicMaterial({ map: boardTexture, transparent: true, opacity: 0.9, side: THREE.FrontSide }));
     infoBoardGroup.add(boardPlane);
 
-    // --- Smoke Particles (ควัน) ---
+    // --- Smoke Particles (ควันปกติ) ---
     const smokeCanvas = document.createElement('canvas');
     smokeCanvas.width = 128; smokeCanvas.height = 128;
     const sCtx = smokeCanvas.getContext('2d');
@@ -71,35 +75,95 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
     const smokeMat = new THREE.PointsMaterial({ size: 7, map: smokeTexture, color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.NormalBlending });
     const smokeParticles = new THREE.Points(smokeGeo, smokeMat); scene.add(smokeParticles); smokeParticles.visible = false;
 
-    // --- [เพิ่มใหม่]: เอฟเฟกต์สะเก็ดไฟลอยเอื่อยๆ (Embers) ---
-    const emberCanvas = document.createElement('canvas');
-    emberCanvas.width = 32; emberCanvas.height = 32;
-    const eCtx = emberCanvas.getContext('2d');
-    const eGradient = eCtx.createRadialGradient(16, 16, 0, 16, 16, 16);
-    eGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');    // แกนกลางสีขาวจ้า
-    eGradient.addColorStop(0.2, 'rgba(255, 150, 0, 0.8)');  // สีส้มอมเหลือง
-    eGradient.addColorStop(1, 'rgba(255, 50, 0, 0)');       // ขอบสีแดงจางๆ
-    eCtx.fillStyle = eGradient; eCtx.fillRect(0, 0, 32, 32);
-    const emberTexture = new THREE.CanvasTexture(emberCanvas);
-    emberTexture.needsUpdate = true;
+    // ==========================================
+    // ระบบสร้างสะเก็ดไฟแบบแยกอิสระ (ไล่สเกล)
+    // ==========================================
+    function createEmberSystem(colorType, size, count, blending) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 32; canvas.height = 32;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
 
-    const emberGeo = new THREE.BufferGeometry(); const emberCount = 100;
-    const emberPos = new Float32Array(emberCount * 3), emberSpeeds = new Float32Array(emberCount), emberPhases = new Float32Array(emberCount);
-    for (let i = 0; i < emberCount; i++) {
-        emberPos[i * 3] = (Math.random() - 0.5) * 20;     // X (กระจายกว้างๆ)
-        emberPos[i * 3 + 1] = (Math.random() - 0.5) * 10; // Y (ระดับความสูง)
-        emberPos[i * 3 + 2] = (Math.random() - 0.5) * 20; // Z (ความลึก)
-        emberSpeeds[i] = 0.005 + Math.random() * 0.015;   // อัตราการลอยขึ้น
-        emberPhases[i] = Math.random() * Math.PI * 2;     // จังหวะส่ายไปมา
+        if (colorType === 'red') {
+            // ลูกไฟแดง (สว่างเรืองแสงตรงกลาง)
+            grad.addColorStop(0, 'rgba(255, 200, 150, 1)');
+            grad.addColorStop(0.2, 'rgba(255, 30, 0, 0.9)');
+            grad.addColorStop(1, 'rgba(200, 0, 0, 0)');
+        } else if (colorType === 'black') {
+            // ลูกเขม่าดำ (ทึบแสง ลอยปนกับลูกแดง)
+            grad.addColorStop(0, 'rgba(20, 20, 20, 0.9)');
+            grad.addColorStop(0.4, 'rgba(5, 5, 5, 0.7)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        } else { 
+            // ลูกไฟทอง (สวรรค์/รูปภูมิ)
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            grad.addColorStop(0.2, 'rgba(255, 150, 0, 0.8)');
+            grad.addColorStop(1, 'rgba(255, 50, 0, 0)');
+        }
+
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, 32, 32);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array(count * 3), speeds = new Float32Array(count), phases = new Float32Array(count);
+        for (let i = 0; i < count; i++) {
+            pos[i * 3] = (Math.random() - 0.5) * 20;
+            pos[i * 3 + 1] = (Math.random() - 0.5) * 10;
+            pos[i * 3 + 2] = (Math.random() - 0.5) * 20;
+            speeds[i] = 0.005 + Math.random() * 0.015;
+            phases[i] = Math.random() * Math.PI * 2;
+        }
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        
+        const mat = new THREE.PointsMaterial({ 
+            size: size, map: texture, transparent: true, 
+            opacity: colorType === 'black' ? 0.8 : 0.9, // สีดำให้ทึบนิดนึงจะได้เห็นชัด
+            depthWrite: false, blending: blending 
+        });
+        
+        const particles = new THREE.Points(geo, mat);
+        particles.userData = { speeds, phases, count };
+        scene.add(particles);
+        return particles;
     }
-    emberGeo.setAttribute('position', new THREE.BufferAttribute(emberPos, 3));
-    
-    // ใช้ AdditiveBlending เพื่อให้สะเก็ดไฟเรืองแสงเวลาซ้อนกัน
-    const emberMat = new THREE.PointsMaterial({ size: 0.25, map: emberTexture, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
-    const emberParticles = new THREE.Points(emberGeo, emberMat); scene.add(emberParticles); emberParticles.visible = true;
 
+    // 1. กลุ่มลูกไฟทอง (แยกขนาดเล็ก-ใหญ่)
+    const goldEmbers = [
+        createEmberSystem('gold', 0.15, 60, THREE.AdditiveBlending), // ลูกเล็ก
+        createEmberSystem('gold', 0.4, 40, THREE.AdditiveBlending)   // ลูกใหญ่
+    ];
 
-    // Realms Database
+    // 2. กลุ่มลูกไฟนรก (แยกลูกแดง และ ลูกดำ พร้อมไล่ขนาด)
+    const hellEmbers = [
+        createEmberSystem('red', 0.15, 70, THREE.AdditiveBlending),  // ลูกแดง (เล็ก)
+        createEmberSystem('red', 0.4, 30, THREE.AdditiveBlending),   // ลูกแดง (ใหญ่)
+        createEmberSystem('black', 0.25, 60, THREE.NormalBlending),  // เขม่าดำ (กลาง)
+        createEmberSystem('black', 0.6, 40, THREE.NormalBlending)    // เขม่าดำ (ใหญ่)
+    ];
+
+    // ฟังก์ชันอัปเดตอนิเมชันลูกไฟ
+    function updateEmberGroup(group) {
+        group.forEach(emberSys => {
+            if (!emberSys.visible) return;
+            const positions = emberSys.geometry.attributes.position.array;
+            const { speeds, phases, count } = emberSys.userData;
+            for (let i = 0; i < count; i++) {
+                positions[i*3+1] += speeds[i]; 
+                positions[i*3] += Math.sin(Date.now()*0.001 + phases[i])*0.01; 
+                positions[i*3+2] += Math.cos(Date.now()*0.001 + phases[i])*0.01; 
+                
+                if (positions[i*3+1] > 5) { 
+                    positions[i*3+1] = -5; 
+                    positions[i*3] = (Math.random()-0.5)*20;
+                    positions[i*3+2] = (Math.random()-0.5)*20;
+                }
+            }
+            emberSys.geometry.attributes.position.needsUpdate = true;
+        });
+    }
+    // ==========================================
+
     const realmsConfig = [
         { id: 28, name: "อรูปภูมิ", zone: "arupa", color: 0x00ffff, yt: "0bhmtvfULcY", desc: ["ภูมิของผู้ที่เข้าถึงความว่างเปล่า", "ไม่มีรูปร่าง มีเพียงจิตและเจตสิก", "มีอายุยืนยาวมหาศาล", "สถิตอยู่ในความสงบอันประณีตสูงสุด"] },
         { id: 12, name: "รูปภูมิ", zone: "rupa", color: 0xffffff, yt: "Uh6E4hpato8", desc: ["ภูมิของพระพรหมผู้บรรลุรูปฌาน", "มีรัศมีกายสว่างไสวงดงาม", "ไม่มีความกังวลในเรื่องกามคุณ", "อิ่มเอิบด้วยปีติและสุขอันบริสุทธิ์"] },
@@ -124,16 +188,25 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
     let currentActiveZone = "";
 
     function setLobbyBackground() {
-        textureLoader.load('textures/lobby.jpg', (tex) => { tex.mapping = THREE.EquirectangularReflectionMapping; scene.background = tex; });
-        scene.fog = new THREE.FogExp2(0x0a0a15, 0.02); 
+        textureLoader.load('textures/lobby.jpg', (tex) => { 
+            tex.mapping = THREE.EquirectangularReflectionMapping; 
+            scene.background = tex; 
+        });
+        scene.fog = new THREE.FogExp2(0x1c2536, 0.012); 
         smokeParticles.visible = false;
-        emberParticles.visible = true; // โชว์สะเก็ดไฟหน้าสารบัญ
+        
+        goldEmbers.forEach(e => e.visible = true);
+        hellEmbers.forEach(e => e.visible = false);
+        
         controls.autoRotate = true; 
     }
 
     function loadMasterRoom(realm) {
         document.getElementById('fade-overlay').style.opacity = 1;
         controls.autoRotate = false; 
+        
+        camera.position.set(0, 1.8, 3.5); 
+        controls.target.set(0, 1.5, -4.0);
 
         setTimeout(() => {
             document.getElementById('realm-menu').style.display = 'none';
@@ -143,7 +216,18 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
             masterRoomGroup.visible = true;
             div.style.display = 'block'; 
             cssObject.visible = true; 
-            emberParticles.visible = false; // ปิดสะเก็ดไฟตอนเข้าห้อง เพื่อโชว์เฉพาะควันของห้องนั้น
+            
+            // --- จัดการลูกไฟตามภพภูมิ ---
+            if (realm.id > 5) {
+                goldEmbers.forEach(e => e.visible = true);
+                hellEmbers.forEach(e => e.visible = false);
+            } else if (realm.id < 5) {
+                goldEmbers.forEach(e => e.visible = false);
+                hellEmbers.forEach(e => e.visible = true);
+            } else {
+                goldEmbers.forEach(e => e.visible = false);
+                hellEmbers.forEach(e => e.visible = false);
+            }
             
             document.getElementById('realm-status').innerText = `กำลังชม: ${realm.name}`;
             document.getElementById('realm-status').style.color = `#${realm.color.toString(16).padStart(6, '0')}`;
@@ -256,7 +340,9 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
         cssObject.visible = false; 
         iframe.src = "";
         controls.autoRotate = false; 
-        emberParticles.visible = false; // ปิดสะเก็ดไฟเมื่อสลับไปลานธรรม
+        
+        goldEmbers.forEach(e => e.visible = false);
+        hellEmbers.forEach(e => e.visible = false);
     }
 
     function update() {
@@ -274,6 +360,23 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
             camera.position.add(moveVector); controls.target.add(moveVector);
         }
 
+        // ซ่อนจอ YouTube เมื่อมองจากด้านหลัง
+        if (masterRoomGroup.visible) {
+            const tvWorldPos = new THREE.Vector3();
+            tvGroup.getWorldPosition(tvWorldPos);
+
+            const tvNormal = new THREE.Vector3(0, 0, 1);
+            tvNormal.applyQuaternion(tvGroup.quaternion);
+
+            const viewDir = new THREE.Vector3().subVectors(camera.position, tvWorldPos).normalize();
+
+            if (tvNormal.dot(viewDir) < 0) {
+                cssObject.visible = false; 
+            } else {
+                cssObject.visible = true; 
+            }
+        }
+
         // อัปเดตควัน
         if (smokeParticles.visible) {
             const positions = smokeParticles.geometry.attributes.position.array;
@@ -284,22 +387,9 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
             smokeParticles.geometry.attributes.position.needsUpdate = true;
         }
 
-        // อัปเดตสะเก็ดไฟ (ลอยขึ้นและส่ายซ้ายขวาเบาๆ)
-        if (emberParticles.visible) {
-            const ePositions = emberParticles.geometry.attributes.position.array;
-            for (let i = 0; i < emberCount; i++) {
-                ePositions[i*3+1] += emberSpeeds[i]; 
-                ePositions[i*3] += Math.sin(Date.now()*0.001 + emberPhases[i])*0.01; 
-                ePositions[i*3+2] += Math.cos(Date.now()*0.001 + emberPhases[i])*0.01; 
-                
-                if (ePositions[i*3+1] > 5) { 
-                    ePositions[i*3+1] = -5; // ถ้าลอยสูงเกินไป ให้ดึงกลับมาเริ่มที่พื้นใหม่
-                    ePositions[i*3] = (Math.random()-0.5)*20;
-                    ePositions[i*3+2] = (Math.random()-0.5)*20;
-                }
-            }
-            emberParticles.geometry.attributes.position.needsUpdate = true;
-        }
+        // อัปเดตสะเก็ดไฟทั้งหมด
+        updateEmberGroup(goldEmbers);
+        updateEmberGroup(hellEmbers);
     }
 
     return { scene, camera, controls, update, onEnterScene, onExitScene };

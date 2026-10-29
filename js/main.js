@@ -32,7 +32,31 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
-document.body.appendChild(VRButton.createButton(renderer));
+
+// --- ระบบจัดการปุ่ม VR ---
+const vrButtonEl = VRButton.createButton(renderer);
+vrButtonEl.id = 'VRButton'; 
+document.body.appendChild(vrButtonEl);
+
+// [แก้ไข] ใช้ setInterval ตรวจสอบสถานะ เพราะ WebXR จะใช้เวลาเช็คแว่นครู่หนึ่ง
+const checkVR = setInterval(() => {
+    const text = vrButtonEl.textContent.toUpperCase();
+    
+    // ถ้าระบบแจ้งว่าไม่รองรับ หรือ ไม่มี VR
+    if (text.includes('NOT SUPPORTED') || text.includes('NOT AVAILABLE')) {
+        vrButtonEl.style.display = 'none'; // ซ่อนปุ่มระบบ
+        
+        const vrGuideBtn = document.getElementById('vr-guide-btn');
+        if (vrGuideBtn) vrGuideBtn.style.display = 'block'; // โชว์ปุ่มของเราแทนตรงกลางจอ
+        
+        clearInterval(checkVR); // หยุดการตรวจสอบ
+    } 
+    // ถ้ารองรับ VR (ขึ้นว่า ENTER VR)
+    else if (text.includes('ENTER VR')) {
+        clearInterval(checkVR); // หยุดการตรวจสอบและปล่อยปุ่มระบบไว้
+    }
+}, 300); // เช็คทุกๆ 0.3 วินาที
+// ----------------------------------------------
 
 const cssRenderer = new CSS3DRenderer();
 cssRenderer.setSize(window.innerWidth, window.innerHeight);
@@ -45,7 +69,7 @@ const realmModule = setupRealmScene(renderer, cssRenderer, currentUserName);
 let activeModule = meditationModule;
 meditationModule.scene.visible = true;
 realmModule.scene.visible = false;
-if (meditationModule.onEnterScene) meditationModule.onEnterScene(); // เปิดระบบลานธรรมครั้งแรก
+if (meditationModule.onEnterScene) meditationModule.onEnterScene(); 
 
 // 4. Transition Logic
 const overlay = document.getElementById('fade-overlay');
