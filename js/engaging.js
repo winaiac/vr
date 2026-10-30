@@ -13,39 +13,49 @@ const reactionTypes = {
     'heart': '❤️ สุดยอดเลย'
 };
 
+// 1. สร้าง UI ปุ่มกดบนหน้าจอ (แบบรวมเป็นแคปซูลเดียว)
 function createReactionUI() {
     const container = document.createElement('div');
     container.id = 'reaction-ui-container';
     container.style.position = 'absolute';
-    container.style.bottom = 'clamp(30px, 4vh, 50px)'; // ชิดขอบล่าง
-    container.style.left = 'clamp(10px, 2vw, 20px)';  // ชิดมุมซ้าย
+    container.style.bottom = 'clamp(30px, 4vh, 50px)'; 
+    container.style.left = 'clamp(10px, 2vw, 20px)';  
     container.style.display = 'flex';
-    container.style.flexDirection = 'row'; // จัดเรียงเป็นแนวนอน
-    container.style.gap = '10px';
+    container.style.flexDirection = 'row'; 
     container.style.zIndex = '999';
     container.style.pointerEvents = 'auto';
 
-    Object.entries(reactionTypes).forEach(([key, text]) => {
+    // เปลี่ยนมาตั้งค่ากรอบและพื้นหลังให้ Container แทน (เพื่อให้เป็นแคปซูลเดียว)
+    container.style.background = 'rgba(0, 0, 0, 0.5)';
+    container.style.border = '1px solid rgba(255, 255, 255, 0.3)';
+    container.style.borderRadius = '30px'; // ขอบมนเป็นแคปซูล
+    container.style.overflow = 'hidden'; // ป้องกันไม่ให้สีปุ่มตอนชี้เมาส์ล้นกรอบมน
+    container.style.backdropFilter = 'blur(4px)';
+
+    const entries = Object.entries(reactionTypes);
+    entries.forEach(([key, text], index) => {
         const btn = document.createElement('button');
         btn.innerText = text;
-        btn.style.background = 'rgba(0, 0, 0, 0.5)';
+        btn.style.background = 'transparent'; // ให้ปุ่มโปร่งใสเพื่อโชว์สีแคปซูล
         btn.style.color = '#fff';
-        btn.style.border = '1px solid rgba(255, 255, 255, 0.3)';
-        btn.style.borderRadius = '20px';
-        btn.style.padding = '8px 15px';
+        btn.style.border = 'none'; // ลบกรอบปุ่มแต่ละอันออก
+        
+        // ขีดเส้นคั่นบางๆ ระหว่างปุ่ม (ยกเว้นปุ่มสุดท้าย)
+        if (index < entries.length - 1) {
+            btn.style.borderRight = '1px solid rgba(255, 255, 255, 0.2)';
+        }
+
+        btn.style.padding = '8px 18px';
         btn.style.fontFamily = 'Sarabun, sans-serif';
         btn.style.fontSize = '14px';
         btn.style.cursor = 'pointer';
-        btn.style.backdropFilter = 'blur(4px)';
-        btn.style.transition = 'all 0.2s';
+        btn.style.transition = 'background 0.2s'; // เปลี่ยนแค่สีพื้นหลังตอน Hover ไม่ต้องซูมปุ่มเดี๋ยวกรอบแตก
 
         btn.onmouseover = () => {
-            btn.style.background = 'rgba(255, 152, 0, 0.8)';
-            btn.style.transform = 'scale(1.05)';
+            btn.style.background = 'rgba(255, 152, 0, 0.8)'; // สว่างขึ้นตอนชี้เมาส์
         };
         btn.onmouseout = () => {
-            btn.style.background = 'rgba(0, 0, 0, 0.5)';
-            btn.style.transform = 'scale(1)';
+            btn.style.background = 'transparent';
         };
         
         btn.onclick = () => sendReaction(text);
@@ -55,14 +65,14 @@ function createReactionUI() {
 
     document.body.appendChild(container);
     
-    // คอนเทนเนอร์สำหรับข้อความลอยขึ้น (จะลอยอยู่เหนือปุ่มด้านซ้ายล่าง)
+    // คอนเทนเนอร์สำหรับข้อความลอยขึ้น 
     const floatingContainer = document.createElement('div');
     floatingContainer.id = 'floating-reactions-container';
     floatingContainer.style.position = 'absolute';
     floatingContainer.style.bottom = '80px'; 
     floatingContainer.style.left = 'clamp(10px, 2vw, 20px)';
     floatingContainer.style.width = '300px'; 
-    floatingContainer.style.height = '60vh'; // ใช้ vh ให้กล่องสูงแค่ 60% ของจอภาพเสมอ
+    floatingContainer.style.height = '60vh'; // ยืดหยุ่นตามหน้าจอ
     floatingContainer.style.pointerEvents = 'none'; 
     floatingContainer.style.zIndex = '998';
     floatingContainer.style.overflow = 'hidden';
