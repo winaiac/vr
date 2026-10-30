@@ -509,47 +509,49 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         document.getElementById('date-display').innerText = now.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     }, 1000);
 
-    // --- ระบบสลับปุ่มเมนูด้านล่าง (PR <-> VR) เพื่อประหยัดพื้นที่ ---
-    let bottomMenuToggle = true;
+    // --- ระบบสลับปุ่มเมนูด้านล่าง (PR <-> Dev <-> VR) เพื่อประหยัดพื้นที่ ---
+    let bottomMenuState = 0;
     setInterval(() => {
         if (!scene.visible) return; // ทำงานเฉพาะตอนมองเห็นลานปฏิบัติธรรม
 
         const prBtn = document.getElementById('pr-board-btn');
+        const devBtn = document.getElementById('dev-board-btn'); // เพิ่มปุ่มร่วมสร้างวิหารธรรม
         const vrBtn = document.getElementById('vr-guide-btn');
-        const vrSep = document.getElementById('vr-guide-sep');
         
-        // เช็คก่อนว่าเครื่องนี้ต้องโชว์ปุ่ม VR ไหม (ดูจากปุ่มแว่น VR หลักของระบบ)
+        // ซ่อนจุดคั่น (•) ทั้งหมดทิ้งไปเลย เพราะเราแสดงทีละปุ่ม
+        const allSeps = document.querySelectorAll('.hud-separator');
+        allSeps.forEach(sep => sep.style.display = 'none');
+
+        // เช็คก่อนว่าเครื่องนี้ต้องโชว์ปุ่ม VR ไหม
         const vrButtonEl = document.getElementById('VRButton');
         const isVrNeeded = vrButtonEl && (vrButtonEl.style.display === 'none' || vrButtonEl.textContent.includes('NOT'));
 
-        // ถ้าไม่ต้องโชว์ VR ก็ให้ปุ่ม PR (กระดานสะพานบุญ) แสดงค้างไว้ตลอดเลย
-        if (!isVrNeeded) {
-            if (prBtn && prBtn.style.display === 'none') {
-                prBtn.style.display = 'inline-block';
-                prBtn.style.opacity = 1;
-            }
-            if (vrBtn) vrBtn.style.display = 'none';
-            if (vrSep) vrSep.style.display = 'none';
-            return;
+        // เปลี่ยน State (0 -> 1 -> 2 -> 0)
+        bottomMenuState++;
+        if (bottomMenuState > 2) bottomMenuState = 0;
+        
+        // ถ้าเบราว์เซอร์นี้ไม่ต้องโชว์แว่น VR (เช่นเล่นบนคอม/มือถือ) ให้ข้าม State 2 ไปเลย
+        if (!isVrNeeded && bottomMenuState === 2) {
+            bottomMenuState = 0; 
         }
 
-        // ซ่อนจุดคั่น (เพราะเราเอาปุ่มมาสลับตำแหน่งกันแล้ว จึงไม่ต้องมีจุดคั่น)
-        if (vrSep) vrSep.style.display = 'none';
-
-        bottomMenuToggle = !bottomMenuToggle;
-        
         // แอนิเมชันหรี่แสงลงก่อนสลับปุ่ม
         if (prBtn) prBtn.style.opacity = 0;
+        if (devBtn) devBtn.style.opacity = 0;
         if (vrBtn) vrBtn.style.opacity = 0;
 
         setTimeout(() => {
-            if (bottomMenuToggle) {
-                // โชว์ กระดานสะพานบุญ
+            // ซ่อนทุกปุ่มก่อน
+            if (prBtn) prBtn.style.display = 'none';
+            if (devBtn) devBtn.style.display = 'none';
+            if (vrBtn) vrBtn.style.display = 'none';
+
+            // โชว์ปุ่มตาม State ปัจจุบัน
+            if (bottomMenuState === 0) {
                 if (prBtn) { prBtn.style.display = 'inline-block'; prBtn.style.opacity = 1; }
-                if (vrBtn) vrBtn.style.display = 'none';
-            } else {
-                // โชว์ แนะนำวิธีใช้งาน VR
-                if (prBtn) prBtn.style.display = 'none';
+            } else if (bottomMenuState === 1) {
+                if (devBtn) { devBtn.style.display = 'inline-block'; devBtn.style.opacity = 1; }
+            } else if (bottomMenuState === 2) {
                 if (vrBtn) { vrBtn.style.display = 'inline-block'; vrBtn.style.opacity = 1; }
             }
         }, 300); // เฟดเข้าหลังจากจางหายไป 0.3 วินาที
