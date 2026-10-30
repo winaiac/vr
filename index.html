@@ -51,35 +51,84 @@
             opacity: 1;
         }
 
-        /* --- กล่อง UI ทั่วไป --- */
+        /* --- กล่อง UI ทั่วไป (สไตล์ Camera Monitor HUD) --- */
         #hud-container {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 100;
+            top: var(--safe-top);
+            left: var(--safe-side);
+            right: var(--safe-side);
+            /* ขึงให้กว้างเต็มจอเพื่อแยกซ้าย-ขวา */
+            z-index: 1000;
+            /* ให้อยู่หน้าสุดเสมอ */
             display: flex;
-            flex-direction: column;
-            gap: 10px;
+            justify-content: space-between;
+            align-items: flex-start;
             pointer-events: none;
-        }
-
-        .status-box {
-            border-radius: 4px;
-            padding: 8px 12px;
-            background: rgba(20, 10, 5, 0.85);
-            font-weight: bold;
-            width: fit-content;
-            pointer-events: auto;
+            color: #ffffff;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9), 0 0 5px rgba(0, 0, 0, 0.6);
             font-size: 14px;
+            letter-spacing: 0.5px;
         }
 
+        .hud-group {
+            display: flex;
+            gap: 12px;
+            align-items: baseline;
+            flex-wrap: wrap;
+        }
+
+        .separator {
+            opacity: 0.6;
+            font-weight: normal;
+        }
+
+        /* ล้างค่าพื้นหลัง กรอบ และสีเก่าๆ ทิ้งทั้งหมด */
+        .status-box,
         #datetime-box {
-            border: 1px solid #ff9800;
-            border-radius: 4px;
-            padding: 10px 15px;
-            background: rgba(20, 10, 5, 0.85);
-            width: fit-content;
-            pointer-events: auto;
+            background: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            color: #ffffff !important;
+        }
+
+        /* จัดเรียงนาฬิกาและวันที่ให้อยู่บรรทัดเดียวกัน */
+        #datetime-box {
+            display: flex;
+            gap: 10px;
+            align-items: baseline;
+        }
+
+        #time-display {
+            font-size: 18px !important;
+            font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
+            letter-spacing: 1px;
+            color: #ffffff !important;
+        }
+
+        #date-display,
+        #lunar-display,
+        #holy-day-display {
+            font-size: 14px !important;
+            font-weight: normal !important;
+            color: #ffffff !important;
+        }
+
+        /* สำหรับหน้าจอมือถือ */
+        @media (max-width: 768px) {
+            #hud-container {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .hud-group {
+                gap: 8px;
+            }
+
+            .separator {
+                display: none;
+            }
         }
 
         /* --- ระบบปุ่ม Fullscreen แบบวูบวาบ --- */
@@ -141,48 +190,88 @@
             transition: all 0.3s;
         }
 
-        /* ปุ่มวาร์ป, ปุ่มกลับลานธรรม และ ปุ่มแนะนำ VR */
-        #warp-btn,
-        #back-to-meditation-btn,
-        #vr-guide-btn {
+        /* ปุ่มวาร์ป 31 ภพภูมิ (สไตล์โปร่งใส - Glassmorphism) */
+        #warp-btn {
             left: 50%;
             transform: translateX(-50%);
             min-width: 280px;
-            /* บังคับความกว้างให้เท่ากันเป๊ะ */
+            bottom: clamp(80px, 10vh, 100px);
+            background-color: rgba(156, 39, 176, 0.15) !important;
+            /* พื้นหลังสีม่วงโปร่งใส 15% */
+            border: 2px solid #e040fb !important;
+            /* เส้นขอบสีม่วงสว่างตัดกับพื้นหลัง */
+            color: #ffffff;
+            box-shadow: 0 0 10px rgba(224, 64, 251, 0.4), inset 0 0 10px rgba(224, 64, 251, 0.2);
+            /* เงาเรืองแสงทั้งด้านนอกและด้านในขอบ */
+            backdrop-filter: blur(4px);
+            /* เอฟเฟกต์เบลอฉากหลังเหมือนกระจกฝ้า */
+            -webkit-backdrop-filter: blur(4px);
         }
 
-        #warp-btn,
+        #warp-btn:hover {
+            background-color: rgba(156, 39, 176, 0.4) !important;
+            /* พื้นหลังทึบขึ้นเล็กน้อยตอนชี้เมาส์ */
+            box-shadow: 0 0 20px rgba(224, 64, 251, 0.8), inset 0 0 15px rgba(224, 64, 251, 0.5);
+            /* เรืองแสงสว่างขึ้น */
+            transform: translateX(-50%) scale(1.05);
+        }
+
+        /* --- เมนูบอร์ดด้านล่าง (สไตล์ HUD Text) --- */
+        #bottom-menu-hud {
+            position: absolute;
+            bottom: clamp(25px, 4vh, 40px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999;
+            display: flex;
+            gap: 12px;
+            pointer-events: none;
+            align-items: center;
+        }
+
+        .hud-btn {
+            background: transparent !important;
+            border: none !important;
+            color: #ffffff !important;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9), 0 0 5px rgba(0, 0, 0, 0.6);
+            font-family: 'Sarabun', sans-serif;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.3s;
+            padding: 5px 8px;
+        }
+
+        .hud-btn:hover {
+            color: #ffd700 !important;
+            transform: scale(1.1);
+        }
+
+        .hud-separator {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+        }
+
+        /* การตั้งค่าปุ่มกลับลานปฏิบัติธรรม (จัดให้อยู่ในกล่องเมนู) */
         #back-to-meditation-btn {
-            bottom: clamp(90px, 12vh, 120px);
-        }
-
-        #warp-btn {
-            background-color: #9c27b0;
-            box-shadow: 0 0 15px #9c27b0;
-        }
-
-        #back-to-meditation-btn {
+            position: relative;
+            left: auto;
+            bottom: auto;
+            transform: none;
+            margin: 15px auto 5px auto;
+            min-width: 250px;
+            width: fit-content;
             background-color: #2196F3;
             box-shadow: 0 0 15px #2196F3;
             display: none;
         }
 
-        #warp-btn:hover,
         #back-to-meditation-btn:hover {
             filter: brightness(1.2);
-            transform: translateX(-50%) scale(1.05);
+            transform: scale(1.05);
         }
 
-        /* ปุ่มแนะนำ VR จะอยู่ตำแหน่งต่ำกว่าปุ่มวาร์ปนิดหน่อย */
-        #vr-guide-btn {
-            bottom: clamp(30px, 5vh, 50px);
-            background-color: #ff5722;
-        }
-
-        #vr-guide-btn:hover {
-            filter: brightness(1.2);
-            transform: translateX(-50%) scale(1.05);
-        }
 
         #stand-btn {
             bottom: clamp(20px, 4vh, 40px);
@@ -191,20 +280,25 @@
             display: none;
         }
 
+        /* ปุ่มกลับหน้าเลือกภพภูมิ (อยู่ในเลเยอร์ของ HUD) */
         #return-lobby-btn {
-            top: 20px;
-            right: 20px;
-            padding: 10px 20px;
+            padding: 6px 15px;
             background-color: #ff9800;
-            border-radius: 10px;
-            display: none;
-            position: absolute;
-            z-index: 999;
+            border-radius: 8px;
             pointer-events: auto;
-            font-family: 'Sarabun';
+            font-family: 'Sarabun', sans-serif;
             font-weight: bold;
+            font-size: 14px;
+            color: white;
             border: 2px solid white;
             cursor: pointer;
+            transition: 0.3s;
+            display: none;
+        }
+
+        #return-lobby-btn:hover {
+            transform: scale(1.05);
+            filter: brightness(1.2);
         }
 
         /* --- เมนู 31 ภพภูมิ --- */
@@ -214,31 +308,27 @@
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 500;
-
-            /* ปรับให้โปร่งใสขึ้น (เปลี่ยนจาก 0.85 เป็น 0.45) */
             background: rgba(20, 20, 30, 0.45);
-
-            /* เพิ่มความเบลอของกระจกให้ตัวหนังสือยังอ่านง่ายแม้พื้นหลังจะใส */
             backdrop-filter: blur(3px);
             -webkit-backdrop-filter: blur(3px);
-            /* สำหรับ Safari */
-
-            padding: 30px;
+            padding: 20px 25px;
             border: 2px solid rgba(179, 157, 219, 0.6);
-            /* ปรับกรอบให้โปร่งแสงนิดหน่อย */
             border-radius: 15px;
             text-align: center;
             color: white;
             display: none;
             flex-direction: column;
-            gap: 20px;
+            gap: 5px;
             max-width: 800px;
             width: 90%;
             max-height: 85vh;
             overflow-y: auto;
-
-            /* เพิ่มเงาบางๆ ให้กล่องดูลอยขึ้นมามีมิติ */
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        #realm-menu h2 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
         }
 
         #realm-menu::-webkit-scrollbar {
@@ -251,62 +341,82 @@
         }
 
         .hierarchy-section {
-            margin-bottom: 15px;
-            padding-bottom: 15px;
+            margin-bottom: 5px;
+            padding-bottom: 10px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .hierarchy-section h3 {
+            margin: 5px 0 10px 0;
+            font-size: 18px;
         }
 
         .zone-container {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 10px;
+            gap: 8px;
         }
 
+        /* --- สไตล์ปุ่มหลักแบบใหม่ มีมิติ (แคปซูล) --- */
         .zone-btn {
-            padding: 10px 15px;
-            font-family: 'Sarabun';
-            font-size: 16px;
+            padding: 8px 20px;
+            font-family: 'Sarabun', sans-serif;
+            font-size: 15px;
             font-weight: bold;
-            border: none;
-            border-radius: 5px;
+            border: 2px solid transparent;
+            border-radius: 25px;
             cursor: pointer;
-            transition: 0.3s;
-        }
-
-        .btn-intro {
-            background: #004d40;
-            color: #1de9b6;
-            border: 1px solid #1de9b6;
-        }
-
-        .btn-arupa {
-            background: #0a0a0a;
-            color: #00e5ff;
-            border: 1px solid #00e5ff;
-        }
-
-        .btn-rupa {
-            background: #ffffff;
-            color: #333;
-            border: 1px solid #ccc;
-        }
-
-        .btn-kama {
-            background: #f57f17;
-            color: white;
-            border: 1px solid #fff59d;
-        }
-
-        .btn-abaya {
-            background: #4a148c;
-            color: #ffb74d;
-            border: 1px solid #ffb74d;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            position: relative;
         }
 
         .zone-btn:hover {
-            transform: scale(1.05);
-            filter: brightness(1.3);
+            transform: translateY(-3px) scale(1.03);
+            filter: brightness(1.15);
+        }
+
+        .btn-arupa {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1a 100%);
+            color: #00e5ff;
+            border-color: rgba(0, 229, 255, 0.6);
+        }
+
+        .btn-arupa:hover {
+            box-shadow: 0 6px 15px rgba(0, 229, 255, 0.4);
+        }
+
+        .btn-rupa {
+            background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
+            color: #111;
+            border-color: #cccccc;
+            text-shadow: none;
+        }
+
+        .btn-rupa:hover {
+            box-shadow: 0 6px 15px rgba(255, 255, 255, 0.5);
+        }
+
+        .btn-kama {
+            background: linear-gradient(135deg, #ff9800 0%, #e65100 100%);
+            color: white;
+            border-color: rgba(255, 245, 157, 0.6);
+        }
+
+        .btn-kama:hover {
+            box-shadow: 0 6px 15px rgba(255, 152, 0, 0.5);
+        }
+
+        .btn-abaya {
+            background: linear-gradient(135deg, #6a1b9a 0%, #311b92 100%);
+            color: #ffb74d;
+            border-color: rgba(255, 183, 77, 0.6);
+        }
+
+        .btn-abaya:hover {
+            box-shadow: 0 6px 15px rgba(106, 27, 154, 0.5);
         }
 
         #credits {
@@ -346,8 +456,7 @@
                 left: 10px !important;
             }
 
-            #warp-btn,
-            #back-to-meditation-btn {
+            #warp-btn {
                 bottom: 160px;
                 font-size: 14px;
             }
@@ -363,64 +472,72 @@
     <div id="fade-overlay"></div>
 
     <div id="hud-container">
-        <div id="user-profile" class="status-box" style="border: 1px solid #ffd700; color: #ffd700;">ผู้ใช้งาน:
-            กำลังโหลด...</div>
-        <div id="server-status" class="status-box" style="border: 1px solid #4CAF50; color: #4CAF50;">
-            กำลังเชื่อมต่อเซิร์ฟเวอร์...</div>
-
-        <!-- UI ลานปฏิบัติธรรม -->
-        <div id="meditation-ui-group">
-            <div id="rotating-status" class="status-box"
-                style="border: 1px solid #00ffcc; color: #00ffcc; transition: opacity 0.4s;">กำลังโหลดข้อมูล...</div>
-            <div id="datetime-box">
-                <div id="time-display" style="font-size: 26px; font-weight: bold; color: #ffeb3b; text-align: center;">
-                    00:00:00</div>
-                <div id="date-display" style="font-size: 15px; color: #ffffff; text-align: center;">วัน...</div>
-                <div id="lunar-display" style="font-size: 15px; color: #ffb74d; text-align: center;">ข้างขึ้น...</div>
-                <div id="holy-day-display"
-                    style="font-size: 15px; color: #ff5252; font-weight: bold; text-align: center; display: none;">🌸
-                    วันพระ</div>
-            </div>
+        <!-- ฝั่งซ้าย: ข้อมูลผู้ใช้ และ สถานะเซิร์ฟเวอร์ -->
+        <div class="hud-group">
+            <span id="user-profile" class="status-box">ผู้ใช้งาน: กำลังโหลด...</span>
+            <span class="separator"> | </span>
+            <span id="server-status" class="status-box">กำลังเชื่อมต่อเซิร์ฟเวอร์...</span>
         </div>
 
-        <!-- UI 31 ภพภูมิ -->
-        <div id="realm-ui-group" style="display: none;">
-            <div id="realm-status" class="status-box" style="border: 1px solid #00ffcc; color: #00ffcc;">โถงไตรภพ (Main
-                Lobby)</div>
+        <!-- ฝั่งขวา (ลานปฏิบัติธรรม): โหมด/สถานะ และ นาฬิกา -->
+        <div id="meditation-ui-group" class="hud-group">
+            <span id="rotating-status" class="status-box" style="transition: opacity 0.4s;">กำลังโหลดข้อมูล...</span>
+            <span class="separator"> | </span>
+            <span id="datetime-box">
+                <span id="time-display">00:00:00</span>
+                <span id="date-display">วัน...</span>
+                <span id="lunar-display">ข้างขึ้น...</span>
+                <span id="holy-day-display" style="display: none;">🌸 วันพระ</span>
+            </span>
+        </div>
+
+        <!-- ฝั่งขวา (นิทรรศการ): สถานะภพภูมิ และ ปุ่มกลับ -->
+        <div id="realm-ui-group" class="hud-group" style="display: none; align-items: center;">
+            <span id="realm-status" class="status-box">โถงไตรภพ (Main Lobby)</span>
+            <span class="separator"> | </span>
+            <button id="return-lobby-btn">🚪 กลับหน้าเลือกภพภูมิ</button>
         </div>
     </div>
 
-    <!-- ปุ่มต่างๆ -->
+    <!-- ปุ่มต่างๆ (ส่วนล่าง) -->
     <button id="warp-btn" class="action-btn">🌌 เข้าสู่นิทรรศการ 31 ภพภูมิ</button>
-    <button id="back-to-meditation-btn" class="action-btn">🙏 กลับลานปฏิบัติธรรม</button>
-    <button id="stand-btn" class="action-btn">🚶 ลุกจากที่นั่ง</button>
-    <button id="return-lobby-btn">🚪 กลับหน้าเลือกภพภูมิ</button>
+    <button id="stand-btn" class="action-btn">🚶 ถอยไปจุดเริ่มต้น</button>
     <button id="fullscreen-btn" class="pulse-anim">ขยายเต็มจอ</button>
-    <!-- [เพิ่มใหม่] ปุ่มแนะนำ VR (จะแสดงเฉพาะเครื่องที่เข้า VR ไม่ได้) -->
-    <!-- เปลี่ยน style เป็น bottom: 25px และ left: 50% ให้มาอยู่ตรงกลางแทน -->
-    <button id="vr-guide-btn" class="action-btn pulse-anim" style="display: none;">👓 แนะนำวิธีใช้งาน VR</button>
+    <!-- เมนูทางลัดไปอ่านบอร์ดต่างๆ (สไตล์ HUD ด้านล่าง) -->
+    <div id="bottom-menu-hud">
+        <button id="pr-board-btn" class="hud-btn">📢 กระดานสะพานบุญ</button>
+        <span class="hud-separator">•</span>
+        <button id="dev-board-btn" class="hud-btn">🙏 ร่วมสร้างวิหารธรรม</button>
+        <!-- ปุ่ม VR จะแสดงเฉพาะเครื่องที่เข้า VR ไม่ได้ (คุมด้วย JS) -->
+        <span id="vr-guide-sep" class="hud-separator" style="display: none;">•</span>
+        <button id="vr-guide-btn" class="hud-btn pulse-anim" style="display: none;">👓 แนะนำวิธีใช้งาน VR</button>
+    </div>
 
     <div id="controls-hint">🎮 คลิกเมาส์ค้างเพื่อหมุนกล้อง | ⌨️ W A S D เพื่อเดิน</div>
 
     <!-- เมนู 31 ภพภูมิ -->
     <div id="realm-menu">
-        <h2 style="margin: 0; color: #e040fb;">🌌 นิทรรศการเสมือนจริง ๓๑ ภพภูมิ</h2>
+        <h2 style="margin: 0 0 10px 0; color: #e040fb; font-size: 24px;">🌌 นิทรรศการเสมือนจริง ๓๑ ภพภูมิ</h2>
+
         <div class="hierarchy-section">
-            <h3 style="color: #00e5ff;">อรูปภูมิ ๔ (สูงสุด)</h3>
             <div class="zone-container" id="zone-arupa"></div>
         </div>
+
         <div class="hierarchy-section">
-            <h3 style="color: #ffffff;">รูปภูมิ ๑๖</h3>
             <div class="zone-container" id="zone-rupa"></div>
         </div>
+
         <div class="hierarchy-section">
             <h3 style="color: #fff59d;">กามสุคติภูมิ ๗ (มนุษย์และสวรรค์)</h3>
             <div class="zone-container" id="zone-kama"></div>
         </div>
+
         <div class="hierarchy-section" style="border-bottom: none;">
             <h3 style="color: #ffb74d;">อบายภูมิ ๔ (ทุคติภูมิ)</h3>
             <div class="zone-container" id="zone-abaya"></div>
         </div>
+
+        <button id="back-to-meditation-btn" class="action-btn">🙏 กลับลานปฏิบัติธรรม</button>
     </div>
 
     <div id="credits">พัฒนาโดย: วินัย ผันอากาศ<br>WebXR SPA Project</div>
