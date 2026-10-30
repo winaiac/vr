@@ -6,6 +6,8 @@ import { getDatabase } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-
 
 import { setupMeditationScene } from './meditation-scene.js';
 import { setupRealmScene } from './realm-scene.js';
+// [เพิ่มใหม่] Import ระบบ Engaging
+import { initEngagingSystem } from './engaging.js';
 
 // 1. User & Firebase Setup
 let currentUserName = sessionStorage.getItem('meditationUserName');
@@ -61,6 +63,8 @@ const checkVR = setInterval(() => {
 const cssRenderer = new CSS3DRenderer();
 cssRenderer.setSize(window.innerWidth, window.innerHeight);
 document.getElementById('css-container').appendChild(cssRenderer.domElement);
+// [เพิ่มใหม่] เปิดใช้งาน UI และเชื่อมต่อ Firebase ให้ระบบอิโมจิ
+initEngagingSystem(db, currentUserName);
 
 // 3. Create Scenes
 const meditationModule = setupMeditationScene(renderer, cssRenderer, db, currentUserName);

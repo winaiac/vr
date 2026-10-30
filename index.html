@@ -472,11 +472,12 @@
     <div id="fade-overlay"></div>
 
     <div id="hud-container">
-        <!-- ฝั่งซ้าย: ข้อมูลผู้ใช้ และ สถานะเซิร์ฟเวอร์ -->
-        <div class="hud-group">
-            <span id="user-profile" class="status-box">ผู้ใช้งาน: กำลังโหลด...</span>
+        <!-- ฝั่งซ้าย: ข้อมูลผู้ใช้ (คงที่) และ สถิติแบบสลับ (Rotating) -->
+        <div class="hud-group" id="left-hud-group">
+            <span id="user-profile" class="status-box">👤 ผู้ใช้งาน: กำลังโหลด...</span>
             <span class="separator"> | </span>
-            <span id="server-status" class="status-box">กำลังเชื่อมต่อเซิร์ฟเวอร์...</span>
+            <span id="rotating-global-stats" class="status-box"
+                style="transition: opacity 0.5s ease-in-out;">กำลังคำนวณสถิติ...</span>
         </div>
 
         <!-- ฝั่งขวา (ลานปฏิบัติธรรม): โหมด/สถานะ และ นาฬิกา -->

@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { ref, get, update, onValue, onDisconnect, increment } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
 import { appConfig } from '../config.js';
+import { updateEngagingContext, toggleReactionUI } from './engaging.js';
 
 export function setupMeditationScene(renderer, cssRenderer, db, currentUserName) {
     const scene = new THREE.Scene();
@@ -33,11 +34,72 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     let localBotCount = 0, roomUsersCount = 1, globalUsersCount = 1, currentRoomNum = "1";
     let myRoomId = null;
 
-    function updateServerStatusUI() {
-        if (!scene.visible) return;
-        const totalGlobal = globalUsersCount + localBotCount;
+    // --- ระบบ State & Statistics Management ---
+    // 1. คำนวณผู้เข้าชมสะสม (อิงตามจำนวนวันที่ผ่านไปนับตั้งแต่วันเริ่มโปรเจกต์ + สุ่มนิดหน่อย)
+    const startDate = new Date('2026-10-01').getTime(); 
+    const daysPassed = Math.max(0, Math.floor((new Date().getTime() - startDate) / (1000 * 60 * 60 * 24)));
+    const allTimeVisitors = 1845 + (daysPassed * 123) + Math.floor(Math.random() * 30);
+
+    // 2. ตัวแปรเก็บสถานะการเดินทางของผู้ใช้
+    window.currentActiveMainZone = 'meditation';
+    window.currentActiveSubZone = '';
+    window.exhibitionTotalBots = Math.floor(Math.random() * 15) + 30; // สุ่มบอทเดินในนิทรรศการรวม 30-44 คน
+    window.currentRoomBots = 0;
+
+    // 3. ระบบแสดงสถิติแบบสลับ (Rotating Stats HUD)
+    let globalStatsInterval = null;
+    let currentStatIndex = 0;
+
+    window.updateGlobalHUD = function(mainZone = window.currentActiveMainZone, subZoneName = window.currentActiveSubZone) {
+        document.getElementById('user-profile').innerText = `👤 ผู้ใช้งาน: ${currentUserName}`;
+        
+        const totalGlobal = globalUsersCount + localBotCount + window.exhibitionTotalBots;
         const totalRoom = roomUsersCount + localBotCount;
-        document.getElementById('server-status').innerText = `🌐 รวมทุกห้อง: ${totalGlobal} คน | 🏠 ห้องที่ ${currentRoomNum} (${totalRoom}/${ROOM_CAPACITY} คน)`;
+        
+        // เตรียมชุดข้อความ 3 แบบ
+        const statsTexts = [
+            `👁️ ผู้เข้าชมสะสม: ${allTimeVisitors.toLocaleString()} คน`,
+            `🌐 รวมทั้งเว็บ และ แอพ: ${totalGlobal} คน`,
+            "" // อันที่ 3 จะเปลี่ยนไปตามโซนที่ยืนอยู่
+        ];
+
+        if (mainZone === 'meditation') {
+            statsTexts[2] = `🙏 ลานปฏิบัติธรรม ห้อง ${currentRoomNum} (${totalRoom}/${ROOM_CAPACITY} คน)`;
+        } else if (mainZone === 'exhibition') {
+            let locText = subZoneName === 'Lobby' ? `📍 หน้าโถงสารบัญ: ${window.currentRoomBots} คน` : `${subZoneName}: ${window.currentRoomBots} คน`;
+            statsTexts[2] = `🌌 นิทรรศการรวม: ${window.exhibitionTotalBots} คน | ${locText}`;
+        }
+
+        const rotatingEl = document.getElementById('rotating-global-stats');
+        if (!rotatingEl) return;
+
+        // อัปเดตข้อความทันทีเมื่อเปลี่ยนโซน (แสดงข้อมูลโซนก่อนเพื่อให้รู้ตัวว่าวาร์ปมาแล้ว)
+        currentStatIndex = 2;
+        rotatingEl.innerText = statsTexts[currentStatIndex];
+        rotatingEl.style.opacity = 1;
+
+        // ล้าง Loop เก่าออกก่อน
+        if (globalStatsInterval) clearInterval(globalStatsInterval);
+
+        // เริ่ม Loop สลับข้อความทุกๆ 4 วินาที
+        globalStatsInterval = setInterval(() => {
+            rotatingEl.style.opacity = 0; // หรี่แสงลง
+            setTimeout(() => {
+                currentStatIndex = (currentStatIndex + 1) % 3; // สลับเลข 0 -> 1 -> 2
+                rotatingEl.innerText = statsTexts[currentStatIndex];
+                
+                // สลับสีนิดหน่อยให้สังเกตง่ายว่าข้อมูลเปลี่ยนแล้ว
+                if (currentStatIndex === 0) rotatingEl.style.color = '#ff9800'; // สีส้มสะสม
+                else if (currentStatIndex === 1) rotatingEl.style.color = '#00ffcc'; // สีฟ้าผู้ใช้ปัจจุบัน
+                else rotatingEl.style.color = '#ffffff'; // สีขาวตำแหน่ง
+
+                rotatingEl.style.opacity = 1; // สว่างขึ้น
+            }, 500); // รอให้หรี่แสงเสร็จค่อยเปลี่ยนข้อความ
+        }, 4000);
+    };
+
+    function updateServerStatusUI() {
+        window.updateGlobalHUD(); // ให้ Firebase เรียกใช้อัปเดตได้ตลอดเวลา
     }
 
     function createMeditatorAvatar() {
@@ -67,7 +129,7 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             if (availableIndices.length === 0) break;
             const cushionIdx = availableIndices.splice(Math.floor(Math.random() * availableIndices.length), 1)[0];
             const botCushion = cushionsList[cushionIdx];
-            botCushion.userData.isOccupied = true; botCushion.userData.occupantName = `กัลยาณมิตร${Math.floor(Math.random() * 900 + 100)} (AI)`;
+            botCushion.userData.isOccupied = true; botCushion.userData.occupantName = `กัลยาณมิตร${Math.floor(Math.random() * 900 + 100)}`;
             botCushion.material.color.setHex(0x2a1610);
             const avatar = createMeditatorAvatar(); avatar.position.set(botCushion.position.x, 0.05, botCushion.position.z); seatingGroup.add(avatar);
         }
@@ -76,20 +138,58 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     async function joinRoom() {
         const roomsRef = ref(db, 'rooms'); const snapshot = await get(roomsRef);
         let rooms = snapshot.val() || {}; let targetRoom = null, maxRoomIndex = 0;
+        
         for (const [roomId, roomData] of Object.entries(rooms)) {
             const roomNum = parseInt(roomId.split('_')[1]);
             if (roomNum > maxRoomIndex) maxRoomIndex = roomNum;
+            // ดักจับ: ถ้าห้องมีคนน้อยกว่า 30 (รวมถึงพวกที่บั๊กติดลบ) ถือว่าว่าง
             if (roomData.count < ROOM_CAPACITY) { targetRoom = roomId; break; }
         }
+        
         if (!targetRoom) targetRoom = `room_${maxRoomIndex + 1}`;
         myRoomId = targetRoom; spawnAIBots(); 
-        const myRoomCountRef = ref(db, `rooms/${myRoomId}/count`); const globalCountRef = ref(db, `global_users`);
-        onDisconnect(myRoomCountRef).set(increment(-1)); onDisconnect(globalCountRef).set(increment(-1));
+        
+        const myRoomCountRef = ref(db, `rooms/${myRoomId}/count`); 
+        const globalCountRef = ref(db, `global_users`);
+        
+        onDisconnect(myRoomCountRef).set(increment(-1)); 
+        onDisconnect(globalCountRef).set(increment(-1));
+        
         update(ref(db), { [`rooms/${myRoomId}/count`]: increment(1), [`global_users`]: increment(1) });
-        onValue(globalCountRef, (snap) => { globalUsersCount = snap.val() || 1; updateServerStatusUI(); });
-        onValue(myRoomCountRef, (snap) => { roomUsersCount = snap.val() || 1; currentRoomNum = myRoomId.split('_')[1]; updateServerStatusUI(); });
-    }
+        
+        onValue(globalCountRef, (snap) => { 
+            let count = snap.val() || 1;
+            // [ระบบป้องกันบั๊ก] ถ้าคนรวมติดลบ ให้บังคับรีเซ็ตฐานข้อมูลเป็น 1
+            if (count < 0) {
+                count = 1;
+                update(ref(db), { 'global_users': 1 });
+            }
+            globalUsersCount = count; 
+            updateServerStatusUI(); 
+        });
+        
+        onValue(myRoomCountRef, (snap) => { 
+            let count = snap.val() || 1;
+            // [ระบบป้องกันบั๊ก] ถ้าคนในห้องติดลบ ให้บังคับรีเซ็ตฐานข้อมูลเป็น 1
+            if (count < 0) {
+                count = 1;
+                update(ref(db), { [`rooms/${myRoomId}/count`]: 1 });
+            }
+            roomUsersCount = count; 
+            currentRoomNum = myRoomId.split('_')[1]; 
+            updateServerStatusUI(); 
+        });
 
+        // =====================================
+        // [เติมโค้ดชุดนี้ เพื่อส่งชื่อบอทไปให้ engaging.js]
+        // =====================================
+        const botNames = cushionsList
+            .filter(c => c.userData.isOccupied && !c.userData.isMine)
+            .map(c => c.userData.occupantName);
+        
+        updateEngagingContext(myRoomId, botNames);
+        // =====================================
+    }
     // --- Cushions ---
     const cushionGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 32);
     const seatingGroup = new THREE.Group(); seatingGroup.position.set(0, 0.05, -1.5); scene.add(seatingGroup);
@@ -291,6 +391,11 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         const bottomHud = document.getElementById('bottom-menu-hud');
         if (bottomHud) bottomHud.style.display = 'flex';
 
+        // =====================================
+        // [เติมโค้ดชุดนี้ เพื่อโชว์ปุ่มอิโมจิกลับมาเวลาถอยมาลานธรรม]
+        toggleReactionUI(true);
+        // =====================================
+
         isSeated = false; isReading = false; isTransitioning = true; controls.enabled = false;
         targetCamPos.copy(defaultCameraPos); targetLookAt.copy(defaultTargetPos);
         currentSeatStatus = "สถานะ: คลิกเลือกเบาะ หรือคลิกจุดสีทองหน้าบอร์ด";
@@ -307,6 +412,11 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         document.getElementById('warp-btn').style.display = 'none';
         const bottomHud = document.getElementById('bottom-menu-hud');
         if (bottomHud) bottomHud.style.display = 'none';
+
+        // =====================================
+        // [เติมโค้ดชุดนี้ เพื่อซ่อนปุ่มอิโมจิเวลาอ่านบอร์ด]
+        toggleReactionUI(false); 
+        // =====================================
         
         currentSeatStatus = `สถานะ: ยืนอ่าน (${statusText})`;
     }
@@ -399,8 +509,59 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         document.getElementById('date-display').innerText = now.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     }, 1000);
 
+    // --- ระบบสลับปุ่มเมนูด้านล่าง (PR <-> VR) เพื่อประหยัดพื้นที่ ---
+    let bottomMenuToggle = true;
+    setInterval(() => {
+        if (!scene.visible) return; // ทำงานเฉพาะตอนมองเห็นลานปฏิบัติธรรม
+
+        const prBtn = document.getElementById('pr-board-btn');
+        const vrBtn = document.getElementById('vr-guide-btn');
+        const vrSep = document.getElementById('vr-guide-sep');
+        
+        // เช็คก่อนว่าเครื่องนี้ต้องโชว์ปุ่ม VR ไหม (ดูจากปุ่มแว่น VR หลักของระบบ)
+        const vrButtonEl = document.getElementById('VRButton');
+        const isVrNeeded = vrButtonEl && (vrButtonEl.style.display === 'none' || vrButtonEl.textContent.includes('NOT'));
+
+        // ถ้าไม่ต้องโชว์ VR ก็ให้ปุ่ม PR (กระดานสะพานบุญ) แสดงค้างไว้ตลอดเลย
+        if (!isVrNeeded) {
+            if (prBtn && prBtn.style.display === 'none') {
+                prBtn.style.display = 'inline-block';
+                prBtn.style.opacity = 1;
+            }
+            if (vrBtn) vrBtn.style.display = 'none';
+            if (vrSep) vrSep.style.display = 'none';
+            return;
+        }
+
+        // ซ่อนจุดคั่น (เพราะเราเอาปุ่มมาสลับตำแหน่งกันแล้ว จึงไม่ต้องมีจุดคั่น)
+        if (vrSep) vrSep.style.display = 'none';
+
+        bottomMenuToggle = !bottomMenuToggle;
+        
+        // แอนิเมชันหรี่แสงลงก่อนสลับปุ่ม
+        if (prBtn) prBtn.style.opacity = 0;
+        if (vrBtn) vrBtn.style.opacity = 0;
+
+        setTimeout(() => {
+            if (bottomMenuToggle) {
+                // โชว์ กระดานสะพานบุญ
+                if (prBtn) { prBtn.style.display = 'inline-block'; prBtn.style.opacity = 1; }
+                if (vrBtn) vrBtn.style.display = 'none';
+            } else {
+                // โชว์ แนะนำวิธีใช้งาน VR
+                if (prBtn) prBtn.style.display = 'none';
+                if (vrBtn) { vrBtn.style.display = 'inline-block'; vrBtn.style.opacity = 1; }
+            }
+        }, 300); // เฟดเข้าหลังจากจางหายไป 0.3 วินาที
+    }, 5000); // สลับกันทุกๆ 5 วินาที
+
     function onEnterScene() {
         div.style.display = 'block'; cssObject.visible = true; 
+
+        // [เพิ่มใหม่ 2 บรรทัดนี้] แจ้งระบบว่าผู้ใช้เดินกลับมาที่ลานปฏิบัติธรรมแล้ว
+        window.currentActiveMainZone = 'meditation';
+        window.currentActiveSubZone = '';
+
         updateServerStatusUI(); updateVideoAndSchedule(); 
         
         if (isSeated || isReading) {
@@ -412,15 +573,7 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             document.getElementById('warp-btn').style.display = 'block';
             const bottomHud = document.getElementById('bottom-menu-hud');
             if (bottomHud) bottomHud.style.display = 'flex';
-            
-            const vrButtonEl = document.getElementById('VRButton');
-            if (vrButtonEl && (vrButtonEl.style.display === 'none' || vrButtonEl.textContent.includes('NOT'))) {
-                const guideBtn = document.getElementById('vr-guide-btn');
-                if (guideBtn) {
-                    guideBtn.style.display = 'block';
-                    document.getElementById('vr-guide-sep').style.display = 'inline';
-                }
-            }
+            // ระบบ Interval จะคอยจัดการสลับปุ่มให้เอง
         }
     }
     

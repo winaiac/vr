@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+import { updateEngagingContext } from './engaging.js';
 
 export function setupRealmScene(renderer, cssRenderer, currentUserName) {
     const scene = new THREE.Scene();
@@ -231,6 +232,17 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
             
             document.getElementById('realm-status').innerText = `กำลังชม: ${realm.name}`;
             document.getElementById('realm-status').style.color = `#${realm.color.toString(16).padStart(6, '0')}`;
+
+            // [เพิ่มโค้ดชุดนี้ต่อท้ายลงมา]
+            if (window.updateGlobalHUD) {
+                window.currentActiveMainZone = 'exhibition';
+                let emoji = '✨';
+                if (realm.zone === 'abaya') emoji = '🔥';
+                else if (realm.zone === 'kama' && realm.id !== 5) emoji = '👼';
+                window.currentActiveSubZone = `${emoji} ${realm.name}`;
+                window.currentRoomBots = Math.floor(Math.random() * 4) + 3; // สุ่มคนเดินเข้าออกห้องใหม่
+                window.updateGlobalHUD();
+            }
             
             pointLight.color.setHex(realm.color); currentActiveZone = realm.zone;
             ringMesh.material.color.setHex(realm.color); tvWireframe.material.color.setHex(realm.color); smokeMat.color.setHex(realm.color);
@@ -308,6 +320,14 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
             iframe.src = "";
             setLobbyBackground(); 
             camera.position.set(0, 1.8, 3.5); controls.target.set(0, 1.5, -4.0);
+
+            // [เพิ่มโค้ดชุดนี้ก่อน opacity = 0]
+            if (window.updateGlobalHUD) {
+                window.currentActiveMainZone = 'exhibition';
+                window.currentActiveSubZone = 'Lobby';
+                window.currentRoomBots = Math.floor(Math.random() * 4) + 3; // สุ่มคนหน้าบอร์ดใหม่
+                window.updateGlobalHUD();
+            }
             
             document.getElementById('fade-overlay').style.opacity = 0;
         }, 800);
@@ -330,6 +350,14 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
         setLobbyBackground();
         div.style.display = 'none'; 
         cssObject.visible = false; 
+
+        // [เพิ่มโค้ดชุดนี้]
+        if (window.updateGlobalHUD) {
+            window.currentActiveMainZone = 'exhibition';
+            window.currentActiveSubZone = 'Lobby';
+            window.currentRoomBots = Math.floor(Math.random() * 4) + 3; // สุ่มคน 3-6 คน
+            window.updateGlobalHUD();
+        }
     }
     
     function onExitScene() {
