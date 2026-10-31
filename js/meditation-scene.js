@@ -745,8 +745,8 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         } else if (controls.enabled) { controls.update(); }
 
         // อัปเดตลูกไฟสวรรค์รอบพระประธาน
-        if (scene.visible && window.updateBuddhaEffects) {
-            window.updateBuddhaEffects();
+        if (scene.visible) {
+            updateBuddhaEffects();
         }
 
         // [แก้ใหม่] อัปเดตแอนิเมชันหิ่งห้อย (เรียกจากไฟล์แยก)
