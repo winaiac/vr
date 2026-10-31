@@ -1,18 +1,76 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { ref, get, update, onValue, onDisconnect, increment } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
 import { appConfig } from '../config.js';
 import { updateEngagingContext, toggleReactionUI } from './engaging.js';
+import { createMeditatorAvatar } from './avatar.js';
+import { loadBuddhaWithEffects, updateBuddhaEffects } from './buddha.js';
+import { createFireflies, updateFireflies } from './fireflies.js';
 
 export function setupMeditationScene(renderer, cssRenderer, db, currentUserName) {
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x2a3b4c);
+    // [เพิ่มใหม่] ประกาศหมอกไว้ตั้งแต่เริ่ม เพื่อให้โมเดลทุกชิ้นรู้จักหมอก
+    scene.fog = new THREE.FogExp2(0xa3c4d1, 0.02);
     
-    // ใส่ระบบหมอก (Fog) เพื่อสร้างมิติความลึก
-    scene.fog = new THREE.Fog(0x2a3b4c, 4, 18);
+    // --- 1. โหลดภาพพื้นหลัง 360 องศา ---
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.load('textures/trees.jpg', (texture) => {
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        scene.background = texture;
+    });
+
+    // --- 2. เรียกใช้งานหิ่งห้อยจากไฟล์แยก ---
+    let fireflies = createFireflies();
+    scene.add(fireflies);
+
+    // --- 3. ระบบไฟและบรรยากาศ (สลับกลางวัน-กลางคืน) ---
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); scene.add(ambientLight);
+    const pointLight = new THREE.PointLight(0xffcc80, 1.5, 15); pointLight.position.set(0, 4, -2); scene.add(pointLight);
     
+    // [เพิ่มใหม่] ไฟแสงจันทร์ (Cinematic Moonlight สีฟ้า) สาดลงมาที่ลาน
+    const moonLight = new THREE.DirectionalLight(0x4a8df8, 0.0); 
+    moonLight.position.set(5, 10, 5); 
+    moonLight.target.position.set(0, 0, 0);
+    scene.add(moonLight); scene.add(moonLight.target);
+
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(16, 16), new THREE.MeshStandardMaterial({ color: 0x4a2e18, roughness: 0.9 }));
+    floor.rotation.x = -Math.PI / 2; scene.add(floor);
+
+    function updateEnvironmentTime() {
+        const currentHour = new Date().getHours();
+        const isNight = currentHour >= 18 || currentHour < 6; 
+
+        if (isNight) {
+            if (scene.backgroundIntensity !== undefined) scene.backgroundIntensity = 0.15; 
+            
+            // [แก้ใหม่] แค่เปลี่ยนสีและความหนาแน่น แทนการ new หมอกใหม่
+            scene.fog.color.setHex(0x08152b); // สีหมอกกลางคืน (น้ำเงินเข้ม)
+            scene.fog.density = 0.05; // ปรับตัวเลขนี้ได้ครับ (ยิ่งเยอะหมอกยิ่งหนา)
+            
+            ambientLight.color.setHex(0x2a3b5c); 
+            ambientLight.intensity = 0.6; 
+            moonLight.intensity = 1.2; 
+            pointLight.intensity = 1.0; 
+            if (fireflies) fireflies.visible = true;
+        } else {
+            if (scene.backgroundIntensity !== undefined) scene.backgroundIntensity = 1.0;
+            
+            // [แก้ใหม่] กลับเป็นสีหมอกกลางวัน
+            scene.fog.color.setHex(0xa3c4d1); // สีหมอกกลางวัน (ฟ้าอมเทา)
+            scene.fog.density = 0.015; // กลางวันหมอกจางๆ
+            
+            ambientLight.color.setHex(0xffffff);
+            ambientLight.intensity = 0.8;
+            moonLight.intensity = 0.0; 
+            pointLight.intensity = 1.5;
+            if (fireflies) fireflies.visible = false;
+        }
+    }
+    updateEnvironmentTime();
+    setInterval(updateEnvironmentTime, 60000);
+
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const defaultCameraPos = new THREE.Vector3(0, 2.5, 6.0);
     const defaultTargetPos = new THREE.Vector3(0, 1, -2);
@@ -26,7 +84,7 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     controls.target.copy(defaultTargetPos);
     controls.rotateSpeed = -1.0;
 
-    let currentScheduleStatus = "โหมด: สแตนด์บาย (ช่องวัดท่าซุง)";
+    let currentScheduleStatus = "โหมด: สแตนด์บาย";
     let currentSeatStatus = "สถานะ: คลิกเลือกเบาะ หรือคลิกจุดสีทองหน้าบอร์ด";
 
     // --- Firebase Logic & Bots ---
@@ -34,19 +92,15 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     let localBotCount = 0, roomUsersCount = 1, globalUsersCount = 1, currentRoomNum = "1";
     let myRoomId = null;
 
-    // --- ระบบ State & Statistics Management ---
-    // 1. คำนวณผู้เข้าชมสะสม (อิงตามจำนวนวันที่ผ่านไปนับตั้งแต่วันเริ่มโปรเจกต์ + สุ่มนิดหน่อย)
     const startDate = new Date('2026-10-01').getTime(); 
     const daysPassed = Math.max(0, Math.floor((new Date().getTime() - startDate) / (1000 * 60 * 60 * 24)));
     const allTimeVisitors = 1845 + (daysPassed * 123) + Math.floor(Math.random() * 30);
 
-    // 2. ตัวแปรเก็บสถานะการเดินทางของผู้ใช้
     window.currentActiveMainZone = 'meditation';
     window.currentActiveSubZone = '';
-    window.exhibitionTotalBots = Math.floor(Math.random() * 15) + 30; // สุ่มบอทเดินในนิทรรศการรวม 30-44 คน
+    window.exhibitionTotalBots = Math.floor(Math.random() * 15) + 30; 
     window.currentRoomBots = 0;
 
-    // 3. ระบบแสดงสถิติแบบสลับ (Rotating Stats HUD)
     let globalStatsInterval = null;
     let currentStatIndex = 0;
 
@@ -56,11 +110,10 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         const totalGlobal = globalUsersCount + localBotCount + window.exhibitionTotalBots;
         const totalRoom = roomUsersCount + localBotCount;
         
-        // เตรียมชุดข้อความ 3 แบบ
         const statsTexts = [
             `👁️ ผู้เข้าชมสะสม: ${allTimeVisitors.toLocaleString()} คน`,
             `🌐 รวมทั้งเว็บ และ แอพ: ${totalGlobal} คน`,
-            "" // อันที่ 3 จะเปลี่ยนไปตามโซนที่ยืนอยู่
+            "" 
         ];
 
         if (mainZone === 'meditation') {
@@ -73,53 +126,29 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         const rotatingEl = document.getElementById('rotating-global-stats');
         if (!rotatingEl) return;
 
-        // อัปเดตข้อความทันทีเมื่อเปลี่ยนโซน (แสดงข้อมูลโซนก่อนเพื่อให้รู้ตัวว่าวาร์ปมาแล้ว)
         currentStatIndex = 2;
         rotatingEl.innerText = statsTexts[currentStatIndex];
         rotatingEl.style.opacity = 1;
 
-        // ล้าง Loop เก่าออกก่อน
         if (globalStatsInterval) clearInterval(globalStatsInterval);
 
-        // เริ่ม Loop สลับข้อความทุกๆ 4 วินาที
         globalStatsInterval = setInterval(() => {
-            rotatingEl.style.opacity = 0; // หรี่แสงลง
+            rotatingEl.style.opacity = 0; 
             setTimeout(() => {
-                currentStatIndex = (currentStatIndex + 1) % 3; // สลับเลข 0 -> 1 -> 2
+                currentStatIndex = (currentStatIndex + 1) % 3; 
                 rotatingEl.innerText = statsTexts[currentStatIndex];
                 
-                // สลับสีนิดหน่อยให้สังเกตง่ายว่าข้อมูลเปลี่ยนแล้ว
-                if (currentStatIndex === 0) rotatingEl.style.color = '#ff9800'; // สีส้มสะสม
-                else if (currentStatIndex === 1) rotatingEl.style.color = '#00ffcc'; // สีฟ้าผู้ใช้ปัจจุบัน
-                else rotatingEl.style.color = '#ffffff'; // สีขาวตำแหน่ง
+                if (currentStatIndex === 0) rotatingEl.style.color = '#ff9800'; 
+                else if (currentStatIndex === 1) rotatingEl.style.color = '#00ffcc'; 
+                else rotatingEl.style.color = '#ffffff'; 
 
-                rotatingEl.style.opacity = 1; // สว่างขึ้น
-            }, 500); // รอให้หรี่แสงเสร็จค่อยเปลี่ยนข้อความ
+                rotatingEl.style.opacity = 1; 
+            }, 500); 
         }, 4000);
     };
 
     function updateServerStatusUI() {
-        window.updateGlobalHUD(); // ให้ Firebase เรียกใช้อัปเดตได้ตลอดเวลา
-    }
-
-    function createMeditatorAvatar() {
-        const group = new THREE.Group();
-        const auraMaterial = new THREE.MeshStandardMaterial({ color: 0xffeab3, emissive: 0xd4af37, emissiveIntensity: 0.6, roughness: 0.4, metalness: 0.1 });
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), auraMaterial);
-        head.position.set(0, 0.60, 0); group.add(head);
-        const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), auraMaterial);
-        shoulder.scale.set(1.35, 0.65, 1.0); shoulder.position.set(0, 0.44, 0); group.add(shoulder);
-        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.26, 0.25, 16), auraMaterial);
-        body.position.set(0, 0.32, 0); group.add(body);
-        const pelvis = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 16), auraMaterial);
-        pelvis.scale.set(1.1, 0.6, 0.9); pelvis.position.set(0, 0.16, 0.02); group.add(pelvis);
-        const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.08, 16), auraMaterial);
-        legs.scale.set(1.1, 1, 0.8); legs.position.set(0, 0.04, 0.05); group.add(legs);
-        const armGeo = new THREE.CapsuleGeometry(0.045, 0.26, 4, 8);
-        const leftArm = new THREE.Mesh(armGeo, auraMaterial); leftArm.position.set(-0.17, 0.28, 0.10); leftArm.rotation.set(-0.5, 0, 0.2); group.add(leftArm);
-        const rightArm = new THREE.Mesh(armGeo, auraMaterial); rightArm.position.set(0.17, 0.28, 0.10); rightArm.rotation.set(-0.5, 0, -0.2); group.add(rightArm);
-        group.rotation.y = Math.PI;
-        return group;
+        window.updateGlobalHUD(); 
     }
 
     function spawnAIBots() {
@@ -129,7 +158,8 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             if (availableIndices.length === 0) break;
             const cushionIdx = availableIndices.splice(Math.floor(Math.random() * availableIndices.length), 1)[0];
             const botCushion = cushionsList[cushionIdx];
-            botCushion.userData.isOccupied = true; botCushion.userData.occupantName = `กัลยาณมิตร${Math.floor(Math.random() * 900 + 100)}`;
+            botCushion.userData.isOccupied = true; 
+            botCushion.userData.occupantName = `กัลยาณมิตร${Math.floor(Math.random() * 900 + 100)}`;
             botCushion.material.color.setHex(0x2a1610);
             const avatar = createMeditatorAvatar(); avatar.position.set(botCushion.position.x, 0.05, botCushion.position.z); seatingGroup.add(avatar);
         }
@@ -142,7 +172,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         for (const [roomId, roomData] of Object.entries(rooms)) {
             const roomNum = parseInt(roomId.split('_')[1]);
             if (roomNum > maxRoomIndex) maxRoomIndex = roomNum;
-            // ดักจับ: ถ้าห้องมีคนน้อยกว่า 30 (รวมถึงพวกที่บั๊กติดลบ) ถือว่าว่าง
             if (roomData.count < ROOM_CAPACITY) { targetRoom = roomId; break; }
         }
         
@@ -159,37 +188,25 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         
         onValue(globalCountRef, (snap) => { 
             let count = snap.val() || 1;
-            // [ระบบป้องกันบั๊ก] ถ้าคนรวมติดลบ ให้บังคับรีเซ็ตฐานข้อมูลเป็น 1
-            if (count < 0) {
-                count = 1;
-                update(ref(db), { 'global_users': 1 });
-            }
+            if (count < 0) { count = 1; update(ref(db), { 'global_users': 1 }); }
             globalUsersCount = count; 
             updateServerStatusUI(); 
         });
         
         onValue(myRoomCountRef, (snap) => { 
             let count = snap.val() || 1;
-            // [ระบบป้องกันบั๊ก] ถ้าคนในห้องติดลบ ให้บังคับรีเซ็ตฐานข้อมูลเป็น 1
-            if (count < 0) {
-                count = 1;
-                update(ref(db), { [`rooms/${myRoomId}/count`]: 1 });
-            }
+            if (count < 0) { count = 1; update(ref(db), { [`rooms/${myRoomId}/count`]: 1 }); }
             roomUsersCount = count; 
             currentRoomNum = myRoomId.split('_')[1]; 
             updateServerStatusUI(); 
         });
 
-        // =====================================
-        // [เติมโค้ดชุดนี้ เพื่อส่งชื่อบอทไปให้ engaging.js]
-        // =====================================
         const botNames = cushionsList
             .filter(c => c.userData.isOccupied && !c.userData.isMine)
             .map(c => c.userData.occupantName);
-        
         updateEngagingContext(myRoomId, botNames);
-        // =====================================
     }
+
     // --- Cushions ---
     const cushionGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 32);
     const seatingGroup = new THREE.Group(); seatingGroup.position.set(0, 0.05, -1.5); scene.add(seatingGroup);
@@ -205,39 +222,108 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     }
     joinRoom();
 
-    // --- Environment & Lights ---
-    scene.add(new THREE.AmbientLight(0xfff3e0, 0.6));
-    const pointLight = new THREE.PointLight(0xffcc80, 1.5, 15); pointLight.position.set(0, 4, -2); scene.add(pointLight);
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(16, 16), new THREE.MeshStandardMaterial({ color: 0x5c4033 }));
-    floor.rotation.x = -Math.PI / 2; scene.add(floor);
     const altarGroup = new THREE.Group(); altarGroup.position.set(-3.2, 0, -4.5); scene.add(altarGroup);
     const table = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.8, 1.0), new THREE.MeshStandardMaterial({ color: 0x4a2e18 })); table.position.set(0, 0.4, 0); altarGroup.add(table);
 
-    const loader = new GLTFLoader();
-    loader.load('bhuddha.glb', function (gltf) {
-        const buddhaModel = gltf.scene; const box = new THREE.Box3().setFromObject(buddhaModel);
-        const scaleFactor = 1.1 / box.getSize(new THREE.Vector3()).y; buddhaModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
-        const center = new THREE.Box3().setFromObject(buddhaModel).getCenter(new THREE.Vector3());
-        buddhaModel.position.set(-center.x, 0.8 - new THREE.Box3().setFromObject(buddhaModel).min.y, -center.z); altarGroup.add(buddhaModel);
-    });
+    loadBuddhaWithEffects(altarGroup);
 
     // --- YouTube CSS3D ---
     const tvGroup = new THREE.Group(); tvGroup.position.set(1.5, 2.9, -4.8); scene.add(tvGroup);
-    const tvFrame = new THREE.Mesh(new THREE.BoxGeometry(7.2, 4.2, 0.2), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2 })); tvGroup.add(tvFrame);
+    
+    const tvFrame = new THREE.Mesh(new THREE.BoxGeometry(7.2, 4.2, 0.2), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 })); 
+    tvGroup.add(tvFrame);
+
+    const standMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.6, roughness: 0.3 });
+    const speakerMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
+    const coneMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.5 });
+    
+    const soundbarGeo = new THREE.BoxGeometry(7.2, 0.3, 0.25);
+    const soundbar = new THREE.Mesh(soundbarGeo, speakerMat);
+    soundbar.position.set(0, -2.25, 0); 
+    tvGroup.add(soundbar);
+    
+    const wooferGeo = new THREE.CylinderGeometry(0.1, 0.08, 0.05, 32); 
+    wooferGeo.rotateX(Math.PI / 2); 
+    const wooferPositions = [-3.2, -2.8, -2.4, 2.4, 2.8, 3.2]; 
+    wooferPositions.forEach(x => {
+        const woofer = new THREE.Mesh(wooferGeo, coneMat);
+        woofer.position.set(x, -2.25, 0.13); 
+        tvGroup.add(woofer);
+    });
+
+    const poleGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.45, 16);
+    const leftPole = new THREE.Mesh(poleGeo, standMat); leftPole.position.set(-1.5, -2.625, 0); tvGroup.add(leftPole);
+    const rightPole = new THREE.Mesh(poleGeo, standMat); rightPole.position.set(1.5, -2.625, 0); tvGroup.add(rightPole);
+    
+    const baseGeo = new THREE.BoxGeometry(4.0, 0.05, 1.2);
+    const standBase = new THREE.Mesh(baseGeo, standMat); standBase.position.set(0, -2.875, 0); tvGroup.add(standBase);
     
     const div = document.createElement('div'); div.style.width = '700px'; div.style.height = '400px'; div.style.backgroundColor = '#000';
-    const iframe = document.createElement('iframe'); iframe.width = "700"; iframe.height = "400"; iframe.frameBorder = "0"; iframe.allowFullscreen = true; iframe.style.borderRadius = "4px"; div.appendChild(iframe);
+    div.style.backfaceVisibility = 'hidden';
+    div.style.webkitBackfaceVisibility = 'hidden';
+
+    const iframe = document.createElement('iframe'); iframe.width = "700"; iframe.height = "400"; iframe.frameBorder = "0"; iframe.allowFullscreen = true; iframe.style.borderRadius = "4px"; 
+    iframe.style.backfaceVisibility = 'hidden';
+    iframe.style.webkitBackfaceVisibility = 'hidden';
+    div.appendChild(iframe);
     
     const cssObject = new CSS3DObject(div); cssObject.position.set(0, 0, 0.12); cssObject.scale.set(0.01, 0.01, 0.01); tvGroup.add(cssObject);
 
     function updateVideoAndSchedule() {
-        const now = new Date(); const curMins = now.getHours() * 60 + now.getMinutes();
-        let activeVideoUrl = appConfig.youtube.standbyUrl; currentScheduleStatus = "โหมด: สแตนด์บาย (ช่องวัดท่าซุง)";
-        if (curMins >= appConfig.youtube.morningStart && curMins <= appConfig.youtube.morningEnd) { activeVideoUrl = appConfig.youtube.morningUrl + "?autoplay=1"; currentScheduleStatus = "โหมด: ทำวัตรเช้า (04:00 - 05:30)"; } 
-        else if (curMins >= appConfig.youtube.eveningStart && curMins <= appConfig.youtube.eveningEnd) { activeVideoUrl = appConfig.youtube.eveningUrl + "?autoplay=1"; currentScheduleStatus = "โหมด: ทำวัตรเย็น (18:00 - 19:30)"; }
-        if (iframe.src !== activeVideoUrl) iframe.src = activeVideoUrl; 
+        const now = new Date(); 
+        const curMins = now.getHours() * 60 + now.getMinutes();
+        const curSeconds = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds(); 
+        
+        let targetVideoUrl = ""; 
+        let newScheduleStatus = "";
+        let offset = 0;
+
+        for (let prog of appConfig.youtube.schedule) {
+            if (curMins >= prog.start && curMins < prog.end) {
+                let startSeconds = prog.start * 60;
+                
+                if (prog.realStart !== undefined) {
+                    startSeconds = prog.realStart * 60;
+                }
+
+                if (curSeconds >= startSeconds) {
+                    offset = curSeconds - startSeconds;
+                } else {
+                    offset = (curSeconds + 86400) - startSeconds;
+                }
+
+                targetVideoUrl = `https://www.youtube.com/embed/${prog.id}?autoplay=1&start=${offset}`; 
+                
+                const sHr = String(Math.floor(prog.start / 60)).padStart(2, '0');
+                const sMin = String(prog.start % 60).padStart(2, '0');
+                let eMins = prog.end === 1440 ? 0 : prog.end; 
+                if (prog.realStart !== undefined && prog.start === 0) {
+                    newScheduleStatus = `โหมด: ${prog.name} (19:00 - 04:00)`; 
+                } else {
+                    const eHr = String(Math.floor(eMins / 60)).padStart(2, '0');
+                    const eMin = String(eMins % 60).padStart(2, '0');
+                    newScheduleStatus = `โหมด: ${prog.name} (${sHr}:${sMin} - ${eHr}:${eMin})`;
+                }
+                break;
+            }
+        }
+
+        if (!targetVideoUrl) {
+            targetVideoUrl = `https://www.youtube.com/embed/6B6LeMlaTu0?autoplay=1`;
+            newScheduleStatus = "โหมด: สแตนด์บาย";
+        }
+
+        if (currentScheduleStatus !== newScheduleStatus || !iframe.src.includes('youtube')) {
+            currentScheduleStatus = newScheduleStatus;
+            iframe.src = targetVideoUrl;
+        }
     }
+    
     updateVideoAndSchedule();
+
+    setInterval(() => {
+        if (scene.visible) updateVideoAndSchedule();
+    }, 10000);
 
     const canvas = document.createElement('canvas'); canvas.width = 1280; canvas.height = 720; const ctx = canvas.getContext('2d');
     const bgGrad = ctx.createLinearGradient(0, 0, 0, 720); bgGrad.addColorStop(0, '#1a0b00'); bgGrad.addColorStop(0.5, '#3b1c00'); bgGrad.addColorStop(1, '#1a0b00');
@@ -254,7 +340,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     const vrTextTexture = new THREE.CanvasTexture(canvas); vrTextTexture.colorSpace = THREE.SRGBColorSpace;
     const vrScreen = new THREE.Mesh(new THREE.PlaneGeometry(7.0, 3.9), new THREE.MeshBasicMaterial({ map: vrTextTexture })); vrScreen.position.set(0, 0, 0.11); tvGroup.add(vrScreen);
 
-    // --- ฟังก์ชันเสริม: วาด 2 ปุ่มลงบน Canvas กระดาน ---
     function drawBoardButtons(cCtx) {
         cCtx.fillStyle = '#d32f2f';
         if (cCtx.roundRect) { cCtx.beginPath(); cCtx.roundRect(25, 660, 210, 60, 15); cCtx.fill(); } else { cCtx.fillRect(25, 660, 210, 60); }
@@ -269,46 +354,119 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         cCtx.fillText('🌌 เข้าสู่ 31 ภพภูมิ', 365, 698);
     }
 
-    // --- Boards (PR, Dev & VR Guide) ---
     const hotspotGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.05, 32);
     const hotspotMat = new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0x886600 });
     const backBtnGeo = new THREE.PlaneGeometry(1.05, 0.3);
     const warpBtnGeo = new THREE.PlaneGeometry(1.1, 0.3);
     const hitboxMat = new THREE.MeshBasicMaterial({ visible: false });
     
-    // 1. PR Board
+    // 1. PR Board (แบบสลับหน้า)
     const prGroup = new THREE.Group(); prGroup.position.set(-7.5, 1.925, 0.0); prGroup.rotation.y = Math.PI / 2; scene.add(prGroup);
     const prFrame = new THREE.Mesh(new THREE.BoxGeometry(2.7, 3.95, 0.1), new THREE.MeshStandardMaterial({ color: 0x4a2b18, roughness: 1.0 })); prGroup.add(prFrame);
-    const prCanvas = document.createElement('canvas'); prCanvas.width = 500; prCanvas.height = 750; const prCtx = prCanvas.getContext('2d');
-    const prWoodGrad = prCtx.createLinearGradient(0, 0, 0, 750);
-    prWoodGrad.addColorStop(0, '#5c3a21'); prWoodGrad.addColorStop(0.4, '#422815'); prWoodGrad.addColorStop(0.8, '#5c3a21'); prWoodGrad.addColorStop(1, '#2e1b0d');
-    prCtx.fillStyle = prWoodGrad; prCtx.fillRect(0, 0, 500, 750); prCtx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-    for (let i = 0; i < 500; i += 8) { if (Math.random() > 0.2) prCtx.fillRect(i, 0, Math.random() * 3 + 1, 750); }
-    prCtx.fillStyle = '#ffd700'; prCtx.font = 'bold 32px Sarabun, sans-serif'; prCtx.textAlign = 'center'; prCtx.fillText(appConfig.prBoard.title, 250, 60);
-    prCtx.beginPath(); prCtx.moveTo(100, 80); prCtx.lineTo(400, 80); prCtx.strokeStyle = '#ffd700'; prCtx.lineWidth = 2; prCtx.stroke();
-    prCtx.fillStyle = '#00ffcc'; prCtx.font = 'bold 24px Sarabun, sans-serif'; prCtx.fillText(appConfig.prBoard.scheduleTitle, 250, 135);
-    prCtx.textAlign = 'left'; prCtx.fillStyle = '#ffffff'; prCtx.font = '22px Sarabun, sans-serif';
-    appConfig.prBoard.scheduleLines.forEach((line, index) => { prCtx.fillText(line, 80, 180 + (index * 40)); });
-    prCtx.beginPath(); prCtx.moveTo(150, 310); prCtx.lineTo(350, 310); prCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)'; prCtx.lineWidth = 1; prCtx.stroke();
-    prCtx.textAlign = 'center'; prCtx.fillStyle = '#ffeb3b'; prCtx.font = 'bold 24px Sarabun, sans-serif'; prCtx.fillText(appConfig.prBoard.contactTitle, 250, 370);
-    prCtx.fillStyle = '#ffffff'; prCtx.font = '18px Sarabun, sans-serif';
-    appConfig.prBoard.contactLines.forEach((line, index) => { prCtx.fillText(line, 250, 420 + (index * 30)); });
-    prCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-    if (prCtx.roundRect) { prCtx.beginPath(); prCtx.roundRect(70, 520, 360, 90, 15); prCtx.fill(); prCtx.strokeStyle = '#ffd700'; prCtx.lineWidth = 2; prCtx.stroke();
-    } else { prCtx.fillRect(70, 520, 360, 90); }
-    prCtx.fillStyle = '#00ffcc'; prCtx.font = 'bold 20px Sarabun, sans-serif'; prCtx.fillText(appConfig.prBoard.contactBoxTitle, 250, 555);
-    prCtx.fillStyle = '#ffffff'; prCtx.font = 'bold 28px Sarabun, sans-serif'; prCtx.fillText(appConfig.prBoard.contactPhone, 250, 595);
-    drawBoardButtons(prCtx); 
     
+    const prCanvas = document.createElement('canvas'); prCanvas.width = 500; prCanvas.height = 750; 
+    const prCtx = prCanvas.getContext('2d');
     const prTexture = new THREE.CanvasTexture(prCanvas); prTexture.colorSpace = THREE.SRGBColorSpace;
-    const prPlane = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 3.75), new THREE.MeshBasicMaterial({ map: prTexture })); prPlane.position.set(0, 0, 0.06); prGroup.add(prPlane);
+    const prPlane = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 3.75), new THREE.MeshBasicMaterial({ map: prTexture })); 
+    prPlane.position.set(0, 0, 0.06); prGroup.add(prPlane);
+
+    let prPageState = 0; 
+    let prOpacity = 1.0; 
+
+    function drawPRBoard() {
+        prCtx.globalAlpha = 1.0; 
+        
+        const prWoodGrad = prCtx.createLinearGradient(0, 0, 0, 750);
+        prWoodGrad.addColorStop(0, '#5c3a21'); prWoodGrad.addColorStop(0.4, '#422815'); 
+        prWoodGrad.addColorStop(0.8, '#5c3a21'); prWoodGrad.addColorStop(1, '#2e1b0d');
+        prCtx.fillStyle = prWoodGrad; prCtx.fillRect(0, 0, 500, 750); 
+        
+        prCtx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        for (let i = 0; i < 500; i += 8) { if (Math.random() > 0.2) prCtx.fillRect(i, 0, Math.random() * 3 + 1, 750); }
+        
+        prCtx.fillStyle = '#ffd700'; prCtx.font = 'bold 32px Sarabun, sans-serif'; prCtx.textAlign = 'center'; 
+        prCtx.fillText(appConfig.prBoard.title, 250, 60);
+        prCtx.beginPath(); prCtx.moveTo(80, 80); prCtx.lineTo(420, 80); prCtx.strokeStyle = '#ffd700'; prCtx.lineWidth = 2; prCtx.stroke();
+
+        drawBoardButtons(prCtx); 
+
+        prCtx.globalAlpha = prOpacity; 
+
+        if (prPageState === 0) {
+            prCtx.fillStyle = '#00ffcc'; prCtx.font = 'bold 26px Sarabun, sans-serif'; 
+            prCtx.fillText(appConfig.prBoard.scheduleTitle, 250, 130);
+            
+            prCtx.textAlign = 'left'; prCtx.fillStyle = '#ffffff'; prCtx.font = '22px Sarabun, sans-serif';
+            appConfig.prBoard.scheduleLines.forEach((line, index) => { 
+                prCtx.fillText(line, 60, 190 + (index * 45)); 
+            });
+            
+            prCtx.textAlign = 'center'; prCtx.fillStyle = '#aaaaaa'; prCtx.font = '16px Sarabun, sans-serif';
+            prCtx.fillText('หน้า 1/2 : สลับหน้าอัตโนมัติ', 250, 630);
+            
+        } else {
+            prCtx.textAlign = 'center'; prCtx.fillStyle = '#ffeb3b'; prCtx.font = 'bold 26px Sarabun, sans-serif'; 
+            prCtx.fillText(appConfig.prBoard.contactTitle, 250, 160);
+            
+            prCtx.fillStyle = '#ffffff'; prCtx.font = '22px Sarabun, sans-serif';
+            appConfig.prBoard.contactLines.forEach((line, index) => { 
+                prCtx.fillText(line, 250, 220 + (index * 40)); 
+            });
+            
+            prCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            if (prCtx.roundRect) { 
+                prCtx.beginPath(); prCtx.roundRect(70, 420, 360, 110, 15); prCtx.fill(); 
+                prCtx.strokeStyle = '#ffd700'; prCtx.lineWidth = 2; prCtx.stroke();
+            } else { 
+                prCtx.fillRect(70, 420, 360, 110); 
+            }
+            prCtx.fillStyle = '#00ffcc'; prCtx.font = 'bold 22px Sarabun, sans-serif'; 
+            prCtx.fillText(appConfig.prBoard.contactBoxTitle, 250, 465);
+            prCtx.fillStyle = '#ffffff'; prCtx.font = 'bold 34px Sarabun, sans-serif'; 
+            prCtx.fillText(appConfig.prBoard.contactPhone, 250, 510);
+            
+            prCtx.fillStyle = '#aaaaaa'; prCtx.font = '16px Sarabun, sans-serif';
+            prCtx.fillText('หน้า 2/2 : สลับหน้าอัตโนมัติ', 250, 630);
+        }
+
+        prCtx.globalAlpha = 1.0; 
+        prTexture.needsUpdate = true; 
+    }
+
+    drawPRBoard(); 
+
+    setInterval(() => {
+        if (!scene.visible) return;
+        
+        let fadeOutTimer = setInterval(() => {
+            prOpacity -= 0.1; 
+            if (prOpacity <= 0) {
+                prOpacity = 0;
+                clearInterval(fadeOutTimer); 
+                
+                prPageState = (prPageState + 1) % 2; 
+                drawPRBoard();
+                
+                let fadeInTimer = setInterval(() => {
+                    prOpacity += 0.1; 
+                    if (prOpacity >= 1.0) {
+                        prOpacity = 1.0;
+                        clearInterval(fadeInTimer); 
+                    }
+                    drawPRBoard();
+                }, 35); 
+            } else {
+                drawPRBoard();
+            }
+        }, 35); 
+        
+    }, 8000); 
 
     const prHotspot = new THREE.Mesh(hotspotGeo, hotspotMat); prHotspot.position.set(-5.0, 0.025, 0.0);
     prHotspot.userData = { isHotspot: true, type: "PR", targetPos: new THREE.Vector3(-5.0, 1.5, 0.0), lookAtPos: new THREE.Vector3(-7.5, 1.675, 0.0) }; scene.add(prHotspot);
 
     const prBackHitbox = new THREE.Mesh(backBtnGeo, hitboxMat); prBackHitbox.position.set(-0.6, -1.575, 0.07); prBackHitbox.userData = { isBackButton: true }; prGroup.add(prBackHitbox);
     const prWarpHitbox = new THREE.Mesh(warpBtnGeo, hitboxMat); prWarpHitbox.position.set(0.575, -1.575, 0.07); prWarpHitbox.userData = { isWarpButton: true }; prGroup.add(prWarpHitbox);
-
 
     // 2. Dev Board
     const devGroup = new THREE.Group(); devGroup.position.set(7.5, 1.925, 0.0); devGroup.rotation.y = -Math.PI / 2; scene.add(devGroup);
@@ -345,7 +503,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     const devBackHitbox = new THREE.Mesh(backBtnGeo, hitboxMat); devBackHitbox.position.set(-0.6, -1.575, 0.07); devBackHitbox.userData = { isBackButton: true }; devGroup.add(devBackHitbox);
     const devWarpHitbox = new THREE.Mesh(warpBtnGeo, hitboxMat); devWarpHitbox.position.set(0.575, -1.575, 0.07); devWarpHitbox.userData = { isWarpButton: true }; devGroup.add(devWarpHitbox);
 
-
     // 3. VR Guide Board
     const vrGuideGroup = new THREE.Group(); vrGuideGroup.position.set(-5.5, 1.925, -5.0); vrGuideGroup.rotation.y = Math.PI / 4; scene.add(vrGuideGroup);
     const vrFrame = new THREE.Mesh(new THREE.BoxGeometry(2.7, 3.95, 0.1), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 })); vrGuideGroup.add(vrFrame);
@@ -374,7 +531,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
 
     const interactables = [...cushionsList, prHotspot, devHotspot, lineHitbox, prBackHitbox, prWarpHitbox, devBackHitbox, devWarpHitbox, vrBackHitbox, vrWarpHitbox];
 
-    // --- Raycaster / Click Logic ---
     let isSeated = false, isReading = false, isTransitioning = false, mySelectedCushion = null;
     const targetCamPos = new THREE.Vector3(), targetLookAt = new THREE.Vector3();
     const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2();
@@ -385,38 +541,30 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             mySelectedCushion.material.color.setHex(0x3b2219); mySelectedCushion = null;
         }
         document.getElementById('stand-btn').style.display = 'none';
+        
         document.getElementById('warp-btn').style.display = 'block';
         
-        // คืนค่าเมนู HUD ด้านล่าง
-        const bottomHud = document.getElementById('bottom-menu-hud');
-        if (bottomHud) bottomHud.style.display = 'flex';
+        const bottomMenu = document.getElementById('bottom-menu-hud');
+        if (bottomMenu) bottomMenu.style.display = 'flex';
 
-        // =====================================
-        // [เติมโค้ดชุดนี้ เพื่อโชว์ปุ่มอิโมจิกลับมาเวลาถอยมาลานธรรม]
         toggleReactionUI(true);
-        // =====================================
 
         isSeated = false; isReading = false; isTransitioning = true; controls.enabled = false;
         targetCamPos.copy(defaultCameraPos); targetLookAt.copy(defaultTargetPos);
         currentSeatStatus = "สถานะ: คลิกเลือกเบาะ หรือคลิกจุดสีทองหน้าบอร์ด";
     }
 
-    // ฟังก์ชันช่วยพาวาร์ปไปอ่านบอร์ดต่างๆ จากเมนู HUD
     function moveToBoard(targetPos, lookAtPos, statusText) {
         if (!scene.visible || isTransitioning || isSeated || isReading) return;
         targetCamPos.copy(targetPos); targetLookAt.copy(lookAtPos);
         isReading = true; isTransitioning = true; controls.enabled = false;
         
-        // ซ่อนปุ่มลอยทั้งหมด
         document.getElementById('stand-btn').style.display = 'none';
         document.getElementById('warp-btn').style.display = 'none';
-        const bottomHud = document.getElementById('bottom-menu-hud');
-        if (bottomHud) bottomHud.style.display = 'none';
-
-        // =====================================
-        // [เติมโค้ดชุดนี้ เพื่อซ่อนปุ่มอิโมจิเวลาอ่านบอร์ด]
-        toggleReactionUI(false); 
-        // =====================================
+        const bottomMenu = document.getElementById('bottom-menu-hud');
+        if (bottomMenu) bottomMenu.style.display = 'none';
+        
+        toggleReactionUI(false);
         
         currentSeatStatus = `สถานะ: ยืนอ่าน (${statusText})`;
     }
@@ -442,11 +590,10 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 targetCamPos.copy(obj.userData.targetPos); targetLookAt.copy(obj.userData.lookAtPos);
                 isReading = true; isTransitioning = true; controls.enabled = false;
                 
-                // ซ่อนกลุ่ม HUD ด้านล่าง
                 document.getElementById('stand-btn').style.display = 'none';
                 document.getElementById('warp-btn').style.display = 'none';
-                const bottomHud = document.getElementById('bottom-menu-hud');
-                if (bottomHud) bottomHud.style.display = 'none';
+                const bottomMenu = document.getElementById('bottom-menu-hud');
+                if (bottomMenu) bottomMenu.style.display = 'none';
                 
                 const boardType = obj.userData.type === "PR" ? "กระดานสะพานบุญ" : "บอร์ดสนับสนุนผู้พัฒนา";
                 currentSeatStatus = `สถานะ: ยืนอ่าน (${boardType})`;
@@ -464,8 +611,8 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 
                 document.getElementById('stand-btn').style.display = 'block';
                 document.getElementById('warp-btn').style.display = 'none';
-                const bottomHud = document.getElementById('bottom-menu-hud');
-                if (bottomHud) bottomHud.style.display = 'none';
+                const bottomMenu = document.getElementById('bottom-menu-hud');
+                if (bottomMenu) bottomMenu.style.display = 'none';
                 
                 currentSeatStatus = `สถานะ: นั่งสมาธิ แถว ${obj.userData.row}, ตัวที่ ${obj.userData.col}`;
             }
@@ -474,7 +621,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
 
     document.getElementById('stand-btn').addEventListener('click', goBackToStandby);
 
-    // เชื่อมต่อปุ่ม HUD ด้านล่าง
     const prBoardBtn = document.getElementById('pr-board-btn');
     if (prBoardBtn) prBoardBtn.addEventListener('click', () => moveToBoard(new THREE.Vector3(-5.0, 1.5, 0.0), new THREE.Vector3(-7.5, 1.675, 0.0), "กระดานสะพานบุญ"));
 
@@ -506,61 +652,49 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         if (!scene.visible) return;
         const now = new Date();
         document.getElementById('time-display').innerText = now.toLocaleTimeString('th-TH', { hour12: false });
-        document.getElementById('date-display').innerText = now.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        
+        const cleanDateStr = now.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        document.getElementById('date-display').innerText = cleanDateStr;
+        
+        const lunarEl = document.getElementById('lunar-display');
+        if (lunarEl) lunarEl.style.display = 'none';
     }, 1000);
 
-    // --- ระบบสลับปุ่มเมนูด้านล่าง (PR <-> Dev <-> VR) เพื่อประหยัดพื้นที่ ---
     let bottomMenuState = 0;
     setInterval(() => {
-        if (!scene.visible) return; // ทำงานเฉพาะตอนมองเห็นลานปฏิบัติธรรม
+        if (!scene.visible) return;
 
         const prBtn = document.getElementById('pr-board-btn');
-        const devBtn = document.getElementById('dev-board-btn'); // เพิ่มปุ่มร่วมสร้างวิหารธรรม
+        const devBtn = document.getElementById('dev-board-btn');
         const vrBtn = document.getElementById('vr-guide-btn');
-        
-        // ซ่อนจุดคั่น (•) ทั้งหมดทิ้งไปเลย เพราะเราแสดงทีละปุ่ม
-        const allSeps = document.querySelectorAll('.hud-separator');
-        allSeps.forEach(sep => sep.style.display = 'none');
 
-        // เช็คก่อนว่าเครื่องนี้ต้องโชว์ปุ่ม VR ไหม
         const vrButtonEl = document.getElementById('VRButton');
         const isVrNeeded = vrButtonEl && (vrButtonEl.style.display === 'none' || vrButtonEl.textContent.includes('NOT'));
 
-        // เปลี่ยน State (0 -> 1 -> 2 -> 0)
         bottomMenuState++;
         if (bottomMenuState > 2) bottomMenuState = 0;
         
-        // ถ้าเบราว์เซอร์นี้ไม่ต้องโชว์แว่น VR (เช่นเล่นบนคอม/มือถือ) ให้ข้าม State 2 ไปเลย
         if (!isVrNeeded && bottomMenuState === 2) {
             bottomMenuState = 0; 
         }
 
-        // แอนิเมชันหรี่แสงลงก่อนสลับปุ่ม
         if (prBtn) prBtn.style.opacity = 0;
         if (devBtn) devBtn.style.opacity = 0;
         if (vrBtn) vrBtn.style.opacity = 0;
 
         setTimeout(() => {
-            // ซ่อนทุกปุ่มก่อน
             if (prBtn) prBtn.style.display = 'none';
             if (devBtn) devBtn.style.display = 'none';
             if (vrBtn) vrBtn.style.display = 'none';
 
-            // โชว์ปุ่มตาม State ปัจจุบัน
-            if (bottomMenuState === 0) {
-                if (prBtn) { prBtn.style.display = 'inline-block'; prBtn.style.opacity = 1; }
-            } else if (bottomMenuState === 1) {
-                if (devBtn) { devBtn.style.display = 'inline-block'; devBtn.style.opacity = 1; }
-            } else if (bottomMenuState === 2) {
-                if (vrBtn) { vrBtn.style.display = 'inline-block'; vrBtn.style.opacity = 1; }
-            }
-        }, 300); // เฟดเข้าหลังจากจางหายไป 0.3 วินาที
-    }, 5000); // สลับกันทุกๆ 5 วินาที
+            if (bottomMenuState === 0 && prBtn) { prBtn.style.display = 'inline-block'; prBtn.style.opacity = 1; }
+            else if (bottomMenuState === 1 && devBtn) { devBtn.style.display = 'inline-block'; devBtn.style.opacity = 1; }
+            else if (bottomMenuState === 2 && vrBtn) { vrBtn.style.display = 'inline-block'; vrBtn.style.opacity = 1; }
+        }, 300);
+    }, 5000);
 
     function onEnterScene() {
         div.style.display = 'block'; cssObject.visible = true; 
-
-        // [เพิ่มใหม่ 2 บรรทัดนี้] แจ้งระบบว่าผู้ใช้เดินกลับมาที่ลานปฏิบัติธรรมแล้ว
         window.currentActiveMainZone = 'meditation';
         window.currentActiveSubZone = '';
 
@@ -569,13 +703,14 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         if (isSeated || isReading) {
             if (isSeated) document.getElementById('stand-btn').style.display = 'block'; 
             document.getElementById('warp-btn').style.display = 'none';
-            const bottomHud = document.getElementById('bottom-menu-hud');
-            if (bottomHud) bottomHud.style.display = 'none';
+            
+            const bottomMenu = document.getElementById('bottom-menu-hud');
+            if (bottomMenu) bottomMenu.style.display = 'none';
         } else {
             document.getElementById('warp-btn').style.display = 'block';
-            const bottomHud = document.getElementById('bottom-menu-hud');
-            if (bottomHud) bottomHud.style.display = 'flex';
-            // ระบบ Interval จะคอยจัดการสลับปุ่มให้เอง
+            
+            const bottomMenu = document.getElementById('bottom-menu-hud');
+            if (bottomMenu) bottomMenu.style.display = 'flex';
         }
     }
     
@@ -584,8 +719,8 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         document.getElementById('stand-btn').style.display = 'none';
         document.getElementById('warp-btn').style.display = 'none';
         
-        const bottomHud = document.getElementById('bottom-menu-hud');
-        if (bottomHud) bottomHud.style.display = 'none';
+        const bottomMenu = document.getElementById('bottom-menu-hud');
+        if (bottomMenu) bottomMenu.style.display = 'none';
         
         iframe.src = ""; 
     }
@@ -608,6 +743,31 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 }
             }
         } else if (controls.enabled) { controls.update(); }
+
+        // อัปเดตลูกไฟสวรรค์รอบพระประธาน
+        if (scene.visible && window.updateBuddhaEffects) {
+            window.updateBuddhaEffects();
+        }
+
+        // [แก้ใหม่] อัปเดตแอนิเมชันหิ่งห้อย (เรียกจากไฟล์แยก)
+        if (scene.visible) updateFireflies();
+
+        // ซ่อนจอ YouTube เมื่อมองจากด้านหลัง (ป้องกันจอทะลุ)
+        if (scene.visible) {
+            const tvWorldPos = new THREE.Vector3();
+            tvGroup.getWorldPosition(tvWorldPos);
+
+            const tvNormal = new THREE.Vector3(0, 0, 1);
+            tvNormal.applyQuaternion(tvGroup.quaternion);
+
+            const viewDir = new THREE.Vector3().subVectors(camera.position, tvWorldPos).normalize();
+
+            if (tvNormal.dot(viewDir) < 0) {
+                cssObject.visible = false; 
+            } else {
+                cssObject.visible = true; 
+            }
+        }
     }
 
     return { scene, camera, controls, update, onEnterScene, onExitScene };
