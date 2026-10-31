@@ -22,15 +22,8 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
     const textureLoader = new THREE.TextureLoader();
     const masterRoomGroup = new THREE.Group(); scene.add(masterRoomGroup); masterRoomGroup.visible = false;
 
-    // Stage Ring
-    const stageGroup = new THREE.Group(); stageGroup.position.set(0, 0, -4.5); masterRoomGroup.add(stageGroup);
-    const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(2, 0.02, 16, 64), new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.8 }));
-    ringMesh.rotation.x = -Math.PI / 2; ringMesh.position.y = 0.05; stageGroup.add(ringMesh);
-
     // YouTube Display
     const tvGroup = new THREE.Group(); tvGroup.position.set(-4.8, 2.5, -3.5); tvGroup.rotation.y = Math.PI / 8; masterRoomGroup.add(tvGroup);
-    const tvWireframe = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(6.2, 3.6, 0.02)), new THREE.LineBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.6 }));
-    tvGroup.add(tvWireframe);
     
     const div = document.createElement('div');
     div.style.width = '600px'; div.style.height = '340px'; div.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
@@ -76,9 +69,7 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
     const smokeMat = new THREE.PointsMaterial({ size: 7, map: smokeTexture, color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.NormalBlending });
     const smokeParticles = new THREE.Points(smokeGeo, smokeMat); scene.add(smokeParticles); smokeParticles.visible = false;
 
-    // ==========================================
-    // ระบบสร้างสะเก็ดไฟแบบแยกอิสระ (ไล่สเกล)
-    // ==========================================
+    // ระบบสร้างสะเก็ดไฟแบบแยกอิสระ
     function createEmberSystem(colorType, size, count, blending) {
         const canvas = document.createElement('canvas');
         canvas.width = 32; canvas.height = 32;
@@ -86,17 +77,14 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
         const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
 
         if (colorType === 'red') {
-            // ลูกไฟแดง (สว่างเรืองแสงตรงกลาง)
             grad.addColorStop(0, 'rgba(255, 200, 150, 1)');
             grad.addColorStop(0.2, 'rgba(255, 30, 0, 0.9)');
             grad.addColorStop(1, 'rgba(200, 0, 0, 0)');
         } else if (colorType === 'black') {
-            // ลูกเขม่าดำ (ทึบแสง ลอยปนกับลูกแดง)
             grad.addColorStop(0, 'rgba(20, 20, 20, 0.9)');
             grad.addColorStop(0.4, 'rgba(5, 5, 5, 0.7)');
             grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
         } else { 
-            // ลูกไฟทอง (สวรรค์/รูปภูมิ)
             grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
             grad.addColorStop(0.2, 'rgba(255, 150, 0, 0.8)');
             grad.addColorStop(1, 'rgba(255, 50, 0, 0)');
@@ -119,7 +107,7 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
         
         const mat = new THREE.PointsMaterial({ 
             size: size, map: texture, transparent: true, 
-            opacity: colorType === 'black' ? 0.8 : 0.9, // สีดำให้ทึบนิดนึงจะได้เห็นชัด
+            opacity: colorType === 'black' ? 0.8 : 0.9, 
             depthWrite: false, blending: blending 
         });
         
@@ -129,21 +117,9 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
         return particles;
     }
 
-    // 1. กลุ่มลูกไฟทอง (แยกขนาดเล็ก-ใหญ่)
-    const goldEmbers = [
-        createEmberSystem('gold', 0.15, 60, THREE.AdditiveBlending), // ลูกเล็ก
-        createEmberSystem('gold', 0.4, 40, THREE.AdditiveBlending)   // ลูกใหญ่
-    ];
+    const goldEmbers = [createEmberSystem('gold', 0.15, 60, THREE.AdditiveBlending), createEmberSystem('gold', 0.4, 40, THREE.AdditiveBlending)];
+    const hellEmbers = [createEmberSystem('red', 0.15, 70, THREE.AdditiveBlending), createEmberSystem('red', 0.4, 30, THREE.AdditiveBlending), createEmberSystem('black', 0.25, 60, THREE.NormalBlending), createEmberSystem('black', 0.6, 40, THREE.NormalBlending)];
 
-    // 2. กลุ่มลูกไฟนรก (แยกลูกแดง และ ลูกดำ พร้อมไล่ขนาด)
-    const hellEmbers = [
-        createEmberSystem('red', 0.15, 70, THREE.AdditiveBlending),  // ลูกแดง (เล็ก)
-        createEmberSystem('red', 0.4, 30, THREE.AdditiveBlending),   // ลูกแดง (ใหญ่)
-        createEmberSystem('black', 0.25, 60, THREE.NormalBlending),  // เขม่าดำ (กลาง)
-        createEmberSystem('black', 0.6, 40, THREE.NormalBlending)    // เขม่าดำ (ใหญ่)
-    ];
-
-    // ฟังก์ชันอัปเดตอนิเมชันลูกไฟ
     function updateEmberGroup(group) {
         group.forEach(emberSys => {
             if (!emberSys.visible) return;
@@ -153,17 +129,56 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
                 positions[i*3+1] += speeds[i]; 
                 positions[i*3] += Math.sin(Date.now()*0.001 + phases[i])*0.01; 
                 positions[i*3+2] += Math.cos(Date.now()*0.001 + phases[i])*0.01; 
-                
-                if (positions[i*3+1] > 5) { 
-                    positions[i*3+1] = -5; 
-                    positions[i*3] = (Math.random()-0.5)*20;
-                    positions[i*3+2] = (Math.random()-0.5)*20;
-                }
+                if (positions[i*3+1] > 5) { positions[i*3+1] = -5; positions[i*3] = (Math.random()-0.5)*20; positions[i*3+2] = (Math.random()-0.5)*20; }
             }
             emberSys.geometry.attributes.position.needsUpdate = true;
         });
     }
-    // ==========================================
+
+    // --- ระบบสลับข้อความแนะนำแบบมีกรอบ (Rotating Hints) ---
+    let realmHintInterval = null;
+    let currentHintIndex = 0;
+    const realmHints = [
+        "▶️ ทัชที่ปุ่มกลาง Play บนจอ YouTube เพื่อชมไฟล์นำเสนอ",
+        "🔄 ทัช ส่วนอื่นๆเลื่อนดูรอบตัวได้"
+    ];
+
+    function startRealmHintRotation() {
+        const hintEl = document.getElementById('realm-room-hint');
+        if (!hintEl) return;
+        
+        hintEl.style.display = 'flex'; 
+        hintEl.innerText = realmHints[0];
+        hintEl.style.opacity = 1;
+        currentHintIndex = 0;
+        
+        if (realmHintInterval) clearInterval(realmHintInterval);
+        
+        realmHintInterval = setInterval(() => {
+            if (!masterRoomGroup.visible) return; 
+            hintEl.style.opacity = 0;
+            setTimeout(() => {
+                currentHintIndex = (currentHintIndex + 1) % 2;
+                hintEl.innerText = realmHints[currentHintIndex];
+                
+                const themeColor = currentHintIndex === 0 ? '#00ffcc' : '#ff9800';
+                hintEl.style.color = themeColor;
+                hintEl.style.borderColor = themeColor;
+                
+                hintEl.style.opacity = 1;
+            }, 400);
+        }, 4500); 
+    }
+
+    function stopRealmHintRotation() {
+        if (realmHintInterval) clearInterval(realmHintInterval);
+        const hintEl = document.getElementById('realm-room-hint');
+        if (hintEl) {
+            hintEl.style.display = 'none';
+            hintEl.style.opacity = 0;
+        }
+    }
+    // ----------------------------------------
 
     const realmsConfig = [
         { id: 28, name: "อรูปภูมิ", zone: "arupa", color: 0x00ffff, yt: "0bhmtvfULcY", desc: ["ภูมิของผู้ที่เข้าถึงความว่างเปล่า", "ไม่มีรูปร่าง มีเพียงจิตและเจตสิก", "มีอายุยืนยาวมหาศาล", "สถิตอยู่ในความสงบอันประณีตสูงสุด"] },
@@ -211,6 +226,10 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
 
         setTimeout(() => {
             document.getElementById('realm-menu').style.display = 'none';
+            
+            const lobbyHint = document.getElementById('realm-lobby-hint');
+            if (lobbyHint) lobbyHint.style.display = 'none'; 
+            
             document.getElementById('return-lobby-btn').style.display = 'block';
             document.getElementById('back-to-meditation-btn').style.display = 'none';
             
@@ -218,7 +237,8 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
             div.style.display = 'block'; 
             cssObject.visible = true; 
             
-            // --- จัดการลูกไฟตามภพภูมิ ---
+            startRealmHintRotation(); 
+            
             if (realm.id > 5) {
                 goldEmbers.forEach(e => e.visible = true);
                 hellEmbers.forEach(e => e.visible = false);
@@ -233,19 +253,19 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
             document.getElementById('realm-status').innerText = `กำลังชม: ${realm.name}`;
             document.getElementById('realm-status').style.color = `#${realm.color.toString(16).padStart(6, '0')}`;
 
-            // [เพิ่มโค้ดชุดนี้ต่อท้ายลงมา]
             if (window.updateGlobalHUD) {
                 window.currentActiveMainZone = 'exhibition';
                 let emoji = '✨';
                 if (realm.zone === 'abaya') emoji = '🔥';
                 else if (realm.zone === 'kama' && realm.id !== 5) emoji = '👼';
                 window.currentActiveSubZone = `${emoji} ${realm.name}`;
-                window.currentRoomBots = Math.floor(Math.random() * 4) + 3; // สุ่มคนเดินเข้าออกห้องใหม่
+                window.currentRoomBots = Math.floor(Math.random() * 4) + 3; 
                 window.updateGlobalHUD();
             }
             
             pointLight.color.setHex(realm.color); currentActiveZone = realm.zone;
-            ringMesh.material.color.setHex(realm.color); tvWireframe.material.color.setHex(realm.color); smokeMat.color.setHex(realm.color);
+            
+            smokeMat.color.setHex(realm.color);
             iframe.src = `https://www.youtube.com/embed/${realm.yt}?autoplay=1&rel=0`;
             
             const bgPaths = { 28: 'arpp.jpg', 12: 'rpp.jpg', 6: 'sawan.jpg', 5: 'manud.jpg', 4.2: 'asul.jpg', 4.1: 'yama.jpg', 3: 'pred.jpg', 2: 'animal.jpg', 1.1: 'narok.jpg', 1.4: 'narok.jpg' };
@@ -310,6 +330,18 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
         document.getElementById('fade-overlay').style.opacity = 1;
         setTimeout(() => {
             document.getElementById('realm-menu').style.display = 'flex';
+            
+            const lobbyHint = document.getElementById('realm-lobby-hint');
+            if (lobbyHint) lobbyHint.style.display = 'inline-block'; 
+            stopRealmHintRotation(); 
+            
+            // [รีเซ็ตข้อความสถานะให้กลับมาเป็นโถงไตรภพ]
+            const statusEl = document.getElementById('realm-status');
+            if (statusEl) {
+                statusEl.innerText = "โถงไตรภพ (Main Lobby)";
+                statusEl.style.color = "#ffffff";
+            }
+            
             document.getElementById('return-lobby-btn').style.display = 'none';
             document.getElementById('back-to-meditation-btn').style.display = 'block';
             
@@ -321,11 +353,10 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
             setLobbyBackground(); 
             camera.position.set(0, 1.8, 3.5); controls.target.set(0, 1.5, -4.0);
 
-            // [เพิ่มโค้ดชุดนี้ก่อน opacity = 0]
             if (window.updateGlobalHUD) {
                 window.currentActiveMainZone = 'exhibition';
                 window.currentActiveSubZone = 'Lobby';
-                window.currentRoomBots = Math.floor(Math.random() * 4) + 3; // สุ่มคนหน้าบอร์ดใหม่
+                window.currentRoomBots = Math.floor(Math.random() * 4) + 3; 
                 window.updateGlobalHUD();
             }
             
@@ -347,15 +378,26 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
 
     function onEnterScene() {
         document.getElementById('realm-menu').style.display = 'flex';
+        
+        const lobbyHint = document.getElementById('realm-lobby-hint');
+        if (lobbyHint) lobbyHint.style.display = 'inline-block'; 
+        stopRealmHintRotation(); 
+        
+        // [บังคับรีเซ็ตข้อความสถานะให้เป็นโถงไตรภพตอนเข้าโซนนิทรรศการครั้งแรก]
+        const statusEl = document.getElementById('realm-status');
+        if (statusEl) {
+            statusEl.innerText = "โถงไตรภพ (Main Lobby)";
+            statusEl.style.color = "#ffffff";
+        }
+        
         setLobbyBackground();
         div.style.display = 'none'; 
         cssObject.visible = false; 
 
-        // [เพิ่มโค้ดชุดนี้]
         if (window.updateGlobalHUD) {
             window.currentActiveMainZone = 'exhibition';
             window.currentActiveSubZone = 'Lobby';
-            window.currentRoomBots = Math.floor(Math.random() * 4) + 3; // สุ่มคน 3-6 คน
+            window.currentRoomBots = Math.floor(Math.random() * 4) + 3; 
             window.updateGlobalHUD();
         }
     }
@@ -363,6 +405,11 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
     function onExitScene() {
         document.getElementById('realm-menu').style.display = 'none';
         document.getElementById('return-lobby-btn').style.display = 'none';
+        
+        const lobbyHint = document.getElementById('realm-lobby-hint');
+        if (lobbyHint) lobbyHint.style.display = 'none'; 
+        stopRealmHintRotation(); 
+        
         masterRoomGroup.visible = false;
         div.style.display = 'none'; 
         cssObject.visible = false; 
@@ -376,8 +423,6 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
     function update() {
         controls.update();
         
-        if (masterRoomGroup.visible) stageGroup.rotation.y += 0.002;
-        
         if (masterRoomGroup.visible && (moveState.forward || moveState.backward || moveState.left || moveState.right)) {
             const forward = new THREE.Vector3(); camera.getWorldDirection(forward); forward.y = 0; forward.normalize();
             const right = new THREE.Vector3(); right.crossVectors(camera.up, forward).normalize();
@@ -388,7 +433,6 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
             camera.position.add(moveVector); controls.target.add(moveVector);
         }
 
-        // ซ่อนจอ YouTube เมื่อมองจากด้านหลัง
         if (masterRoomGroup.visible) {
             const tvWorldPos = new THREE.Vector3();
             tvGroup.getWorldPosition(tvWorldPos);
@@ -405,7 +449,6 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
             }
         }
 
-        // อัปเดตควัน
         if (smokeParticles.visible) {
             const positions = smokeParticles.geometry.attributes.position.array;
             for (let i = 0; i < smokeCount; i++) {
@@ -415,7 +458,6 @@ export function setupRealmScene(renderer, cssRenderer, currentUserName) {
             smokeParticles.geometry.attributes.position.needsUpdate = true;
         }
 
-        // อัปเดตสะเก็ดไฟทั้งหมด
         updateEmberGroup(goldEmbers);
         updateEmberGroup(hellEmbers);
     }

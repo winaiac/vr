@@ -51,15 +51,13 @@
             opacity: 1;
         }
 
-        /* --- กล่อง UI ทั่วไป (สไตล์ Camera Monitor HUD) --- */
+        /* --- กล่อง UI ทั่วไป --- */
         #hud-container {
             position: absolute;
             top: var(--safe-top);
             left: var(--safe-side);
             right: var(--safe-side);
-            /* ขึงให้กว้างเต็มจอเพื่อแยกซ้าย-ขวา */
             z-index: 1000;
-            /* ให้อยู่หน้าสุดเสมอ */
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
@@ -82,7 +80,6 @@
             font-weight: normal;
         }
 
-        /* ล้างค่าพื้นหลัง กรอบ และสีเก่าๆ ทิ้งทั้งหมด */
         .status-box,
         #datetime-box {
             background: transparent !important;
@@ -92,7 +89,6 @@
             color: #ffffff !important;
         }
 
-        /* จัดเรียงนาฬิกาและวันที่ให้อยู่บรรทัดเดียวกัน */
         #datetime-box {
             display: flex;
             gap: 10px;
@@ -115,11 +111,12 @@
             color: #ffffff !important;
         }
 
-        /* สำหรับหน้าจอมือถือ */
         @media (max-width: 768px) {
             #hud-container {
                 flex-direction: column;
                 gap: 8px;
+                top: 10px !important;
+                left: 10px !important;
             }
 
             .hud-group {
@@ -128,6 +125,21 @@
 
             .separator {
                 display: none;
+            }
+
+            #fullscreen-btn {
+                bottom: 110px;
+            }
+
+            #warp-btn,
+            #back-to-meditation-btn,
+            #return-lobby-btn,
+            #stand-btn {
+                font-size: 14px;
+            }
+
+            #center-ui-group {
+                bottom: 95px !important;
             }
         }
 
@@ -173,132 +185,6 @@
         .pulse-anim {
             animation: pulse-attention 1.5s infinite;
             border-color: #ff9800 !important;
-        }
-
-        /* --- ปุ่ม Action ต่างๆ --- */
-        .action-btn {
-            position: absolute;
-            padding: 12px 30px;
-            color: white;
-            border: 2px solid white;
-            border-radius: 25px;
-            cursor: pointer;
-            z-index: 999;
-            font-size: clamp(14px, 1.8vh, 16px);
-            font-weight: bold;
-            pointer-events: auto;
-            transition: all 0.3s;
-        }
-
-        /* ปุ่มวาร์ป 31 ภพภูมิ (สไตล์โปร่งใส - Glassmorphism) */
-        #warp-btn {
-            left: 50%;
-            transform: translateX(-50%);
-            min-width: 280px;
-            bottom: clamp(80px, 10vh, 100px);
-            background-color: rgba(156, 39, 176, 0.15) !important;
-            /* พื้นหลังสีม่วงโปร่งใส 15% */
-            border: 2px solid #e040fb !important;
-            /* เส้นขอบสีม่วงสว่างตัดกับพื้นหลัง */
-            color: #ffffff;
-            box-shadow: 0 0 10px rgba(224, 64, 251, 0.4), inset 0 0 10px rgba(224, 64, 251, 0.2);
-            /* เงาเรืองแสงทั้งด้านนอกและด้านในขอบ */
-            backdrop-filter: blur(4px);
-            /* เอฟเฟกต์เบลอฉากหลังเหมือนกระจกฝ้า */
-            -webkit-backdrop-filter: blur(4px);
-        }
-
-        #warp-btn:hover {
-            background-color: rgba(156, 39, 176, 0.4) !important;
-            /* พื้นหลังทึบขึ้นเล็กน้อยตอนชี้เมาส์ */
-            box-shadow: 0 0 20px rgba(224, 64, 251, 0.8), inset 0 0 15px rgba(224, 64, 251, 0.5);
-            /* เรืองแสงสว่างขึ้น */
-            transform: translateX(-50%) scale(1.05);
-        }
-
-        /* --- เมนูบอร์ดด้านล่าง (สไตล์ HUD Text) --- */
-        #bottom-menu-hud {
-            position: absolute;
-            bottom: clamp(25px, 4vh, 40px);
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 999;
-            display: flex;
-            gap: 12px;
-            pointer-events: none;
-            align-items: center;
-        }
-
-        .hud-btn {
-            background: transparent !important;
-            border: none !important;
-            color: #ffffff !important;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9), 0 0 5px rgba(0, 0, 0, 0.6);
-            font-family: 'Sarabun', sans-serif;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            pointer-events: auto;
-            transition: all 0.3s;
-            padding: 5px 8px;
-        }
-
-        .hud-btn:hover {
-            color: #ffd700 !important;
-            transform: scale(1.1);
-        }
-
-        .hud-separator {
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 14px;
-        }
-
-        /* การตั้งค่าปุ่มกลับลานปฏิบัติธรรม (จัดให้อยู่ในกล่องเมนู) */
-        #back-to-meditation-btn {
-            position: relative;
-            left: auto;
-            bottom: auto;
-            transform: none;
-            margin: 15px auto 5px auto;
-            min-width: 250px;
-            width: fit-content;
-            background-color: #2196F3;
-            box-shadow: 0 0 15px #2196F3;
-            display: none;
-        }
-
-        #back-to-meditation-btn:hover {
-            filter: brightness(1.2);
-            transform: scale(1.05);
-        }
-
-
-        #stand-btn {
-            bottom: clamp(20px, 4vh, 40px);
-            left: var(--safe-side);
-            background-color: #d32f2f;
-            display: none;
-        }
-
-        /* ปุ่มกลับหน้าเลือกภพภูมิ (อยู่ในเลเยอร์ของ HUD) */
-        #return-lobby-btn {
-            padding: 6px 15px;
-            background-color: #ff9800;
-            border-radius: 8px;
-            pointer-events: auto;
-            font-family: 'Sarabun', sans-serif;
-            font-weight: bold;
-            font-size: 14px;
-            color: white;
-            border: 2px solid white;
-            cursor: pointer;
-            transition: 0.3s;
-            display: none;
-        }
-
-        #return-lobby-btn:hover {
-            transform: scale(1.05);
-            filter: brightness(1.2);
         }
 
         /* --- เมนู 31 ภพภูมิ --- */
@@ -358,7 +244,6 @@
             gap: 8px;
         }
 
-        /* --- สไตล์ปุ่มหลักแบบใหม่ มีมิติ (แคปซูล) --- */
         .zone-btn {
             padding: 8px 20px;
             font-family: 'Sarabun', sans-serif;
@@ -449,22 +334,6 @@
             transition: opacity 1s ease-in-out;
             display: none;
         }
-
-        @media (max-width: 768px) {
-            #hud-container {
-                top: 10px !important;
-                left: 10px !important;
-            }
-
-            #warp-btn {
-                bottom: 160px;
-                font-size: 14px;
-            }
-
-            #fullscreen-btn {
-                bottom: 110px;
-            }
-        }
     </style>
 </head>
 
@@ -472,47 +341,59 @@
     <div id="fade-overlay"></div>
 
     <div id="hud-container">
-        <!-- ฝั่งซ้าย: ข้อมูลผู้ใช้ (คงที่) และ สถิติแบบสลับ (Rotating) -->
-        <div class="hud-group" id="left-hud-group">
-            <span id="user-profile" class="status-box">👤 ผู้ใช้งาน: กำลังโหลด...</span>
-            <span class="separator"> | </span>
+        <!-- ฝั่งซ้าย: จัดแนวตั้งชิดซ้าย (ข้อความยืดออกขวา) -->
+        <div class="hud-group" id="left-hud-group" style="flex-direction: column; align-items: flex-start; gap: 6px;">
+            <span id="user-profile" class="status-box" style="color: #ff9800 !important; font-weight: bold;">👤
+                ผู้ใช้งาน: กำลังโหลด...</span>
             <span id="rotating-global-stats" class="status-box"
-                style="transition: opacity 0.5s ease-in-out;">กำลังคำนวณสถิติ...</span>
+                style="transition: opacity 0.5s ease-in-out; min-height: 20px;">กำลังคำนวณสถิติ...</span>
         </div>
 
-        <!-- ฝั่งขวา (ลานปฏิบัติธรรม): โหมด/สถานะ และ นาฬิกา -->
-        <div id="meditation-ui-group" class="hud-group">
-            <span id="rotating-status" class="status-box" style="transition: opacity 0.4s;">กำลังโหลดข้อมูล...</span>
-            <span class="separator"> | </span>
+        <!-- ฝั่งขวา (ลานปฏิบัติธรรม): จัดแนวตั้งชิดขวา ป้องกันข้อความดิ้น -->
+        <div id="meditation-ui-group" class="hud-group"
+            style="flex-direction: column; align-items: flex-end; gap: 6px;">
+
+            <!-- บรรทัด 1: วันที่และเวลา (นิ่งสนิท) -->
             <span id="datetime-box">
-                <span id="time-display">00:00:00</span>
-                <span id="date-display">วัน...</span>
-                <span id="lunar-display">ข้างขึ้น...</span>
+                <span id="date-display" style="margin-right: 8px; color: #cccccc;">วัน...</span>
+                <span id="time-display" style="color: #ffffff;">00:00:00</span>
                 <span id="holy-day-display" style="display: none;">🌸 วันพระ</span>
             </span>
+
+            <!-- บรรทัด 2: สถานะสลับไปมา (ล็อกให้ชิดขวา ขยายออกซ้าย) -->
+            <span id="rotating-status" class="status-box"
+                style="transition: opacity 0.4s; text-align: right; min-height: 20px;">กำลังโหลดข้อมูล...</span>
+
+            <!-- บรรทัด 3: ปุ่มเมนู -->
+            <div id="bottom-menu-hud" style="pointer-events: auto; display: flex; justify-content: flex-end;">
+                <button id="pr-board-btn"
+                    style="display:none; transition: opacity 0.3s; cursor: pointer; border: 1px solid #ffd700; background: rgba(0,0,0,0.6); color: #fff; padding: 4px 12px; border-radius: 20px; font-family: 'Sarabun', sans-serif;">📣
+                    กระดานสะพานบุญ</button>
+                <button id="dev-board-btn"
+                    style="display:none; transition: opacity 0.3s; cursor: pointer; border: 1px solid #00ffcc; background: rgba(0,0,0,0.6); color: #fff; padding: 4px 12px; border-radius: 20px; font-family: 'Sarabun', sans-serif;">🙏
+                    ร่วมสร้างวิหารธรรม</button>
+                <button id="vr-guide-btn"
+                    style="display:none; transition: opacity 0.3s; cursor: pointer; border: 1px solid #e94560; background: rgba(0,0,0,0.6); color: #fff; padding: 4px 12px; border-radius: 20px; font-family: 'Sarabun', sans-serif;">👓
+                    แนะนำวิธีใช้งาน VR</button>
+            </div>
         </div>
 
-        <!-- ฝั่งขวา (นิทรรศการ): สถานะภพภูมิ และ ปุ่มกลับ -->
-        <div id="realm-ui-group" class="hud-group" style="display: none; align-items: center;">
+        <!-- ฝั่งขวา (นิทรรศการ): เรียงแนวตั้งชิดขวาเหมือนกัน -->
+        <div id="realm-ui-group" class="hud-group"
+            style="display: none; flex-direction: column; align-items: flex-end; gap: 8px;">
             <span id="realm-status" class="status-box">โถงไตรภพ (Main Lobby)</span>
-            <span class="separator"> | </span>
-            <button id="return-lobby-btn">🚪 กลับหน้าเลือกภพภูมิ</button>
+            <span id="realm-lobby-hint" class="status-box" style="color: #ff9800; font-size: 13px;">👆
+                คลิกเลือกปุ่มภพภูมิที่ต้องการเข้าชม</span>
+
+            <div id="realm-room-hint"
+                style="display:none; width: 270px; min-height: 50px; background: rgba(0,0,0,0.75); border: 1px solid #00ffcc; border-radius: 8px; padding: 6px 12px; color: #00ffcc; font-size: 13px; font-weight: bold; text-align: center; box-sizing: border-box; transition: opacity 0.4s; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.5); line-height: 1.4; text-shadow: 1px 1px 2px #000;">
+                ▶️ ทัชที่ปุ่มกลาง Play บนจอ YouTube เพื่อชมไฟล์นำเสนอ
+            </div>
         </div>
     </div>
 
-    <!-- ปุ่มต่างๆ (ส่วนล่าง) -->
-    <button id="warp-btn" class="action-btn">🌌 เข้าสู่นิทรรศการ 31 ภพภูมิ</button>
-    <button id="stand-btn" class="action-btn">🚶 ถอยไปจุดเริ่มต้น</button>
+    <!-- ปุ่มปกติที่ยังคงลอยอิสระ -->
     <button id="fullscreen-btn" class="pulse-anim">ขยายเต็มจอ</button>
-    <!-- เมนูทางลัดไปอ่านบอร์ดต่างๆ (สไตล์ HUD ด้านล่าง) -->
-    <div id="bottom-menu-hud">
-        <button id="pr-board-btn" class="hud-btn">📢 กระดานสะพานบุญ</button>
-        <span class="hud-separator">•</span>
-        <button id="dev-board-btn" class="hud-btn">🙏 ร่วมสร้างวิหารธรรม</button>
-        <!-- ปุ่ม VR จะแสดงเฉพาะเครื่องที่เข้า VR ไม่ได้ (คุมด้วย JS) -->
-        <span id="vr-guide-sep" class="hud-separator" style="display: none;">•</span>
-        <button id="vr-guide-btn" class="hud-btn pulse-anim" style="display: none;">👓 แนะนำวิธีใช้งาน VR</button>
-    </div>
 
     <div id="controls-hint">🎮 คลิกเมาส์ค้างเพื่อหมุนกล้อง | ⌨️ W A S D เพื่อเดิน</div>
 
@@ -537,11 +418,38 @@
             <h3 style="color: #ffb74d;">อบายภูมิ ๔ (ทุคติภูมิ)</h3>
             <div class="zone-container" id="zone-abaya"></div>
         </div>
-
-        <button id="back-to-meditation-btn" class="action-btn">🙏 กลับลานปฏิบัติธรรม</button>
     </div>
 
     <div id="credits">พัฒนาโดย: วินัย ผันอากาศ<br>WebXR SPA Project</div>
+
+    <!-- กลุ่มแผงควบคุมกลาง -->
+    <div id="center-ui-group" style="
+        position: absolute;
+        bottom: clamp(25px, 5vh, 40px);
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        z-index: 990;
+        pointer-events: none;
+    ">
+        <div id="main-warp-group" style="pointer-events: auto; display: flex; justify-content: center;">
+            <button id="warp-btn"
+                style="display: none; min-width: 250px; background-color: rgba(156, 39, 176, 0.15); border: 2px solid #e040fb; color: #ffffff; box-shadow: 0 0 10px rgba(224, 64, 251, 0.4), inset 0 0 10px rgba(224, 64, 251, 0.2); backdrop-filter: blur(4px); padding: 10px 20px; border-radius: 25px; font-weight: bold; cursor: pointer; transition: all 0.3s;">🌌
+                เข้าสู่นิทรรศการ 31 ภพภูมิ</button>
+            <button id="back-to-meditation-btn"
+                style="display: none; min-width: 250px; background-color: rgba(76, 175, 80, 0.15); border: 2px solid #4CAF50; color: #ffffff; box-shadow: 0 0 10px rgba(76, 175, 80, 0.4), inset 0 0 10px rgba(76, 175, 80, 0.2); backdrop-filter: blur(4px); padding: 10px 20px; border-radius: 25px; font-weight: bold; cursor: pointer; transition: all 0.3s;">🙏
+                กลับลานปฏิบัติธรรม</button>
+            <button id="return-lobby-btn"
+                style="display: none; min-width: 250px; background-color: rgba(33, 150, 243, 0.15); border: 2px solid #2196F3; color: #ffffff; box-shadow: 0 0 10px rgba(33, 150, 243, 0.4), inset 0 0 10px rgba(33, 150, 243, 0.2); backdrop-filter: blur(4px); padding: 10px 20px; border-radius: 25px; font-weight: bold; cursor: pointer; transition: all 0.3s;">🚪
+                กลับหน้าเลือกภพภูมิ</button>
+            <button id="stand-btn"
+                style="display: none; min-width: 250px; background-color: rgba(244, 67, 54, 0.15); border: 2px solid #F44336; color: #ffffff; box-shadow: 0 0 10px rgba(244, 67, 54, 0.4), inset 0 0 10px rgba(244, 67, 54, 0.2); backdrop-filter: blur(4px); padding: 10px 20px; border-radius: 25px; font-weight: bold; cursor: pointer; transition: all 0.3s;">🚶
+                ถอยไปจุดเริ่มต้น</button>
+        </div>
+    </div>
+
     <div id="css-container"></div>
 
     <script type="importmap">
