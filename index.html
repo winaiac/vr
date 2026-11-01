@@ -364,18 +364,7 @@
             <span id="rotating-status" class="status-box"
                 style="transition: opacity 0.4s; text-align: right; min-height: 20px;">กำลังโหลดข้อมูล...</span>
 
-            <!-- บรรทัด 3: ปุ่มเมนู -->
-            <div id="bottom-menu-hud" style="pointer-events: auto; display: flex; justify-content: flex-end;">
-                <button id="pr-board-btn"
-                    style="display:none; transition: opacity 0.3s; cursor: pointer; border: 1px solid #ffd700; background: rgba(0,0,0,0.6); color: #fff; padding: 4px 12px; border-radius: 20px; font-family: 'Sarabun', sans-serif;">📣
-                    กระดานสะพานบุญ</button>
-                <button id="dev-board-btn"
-                    style="display:none; transition: opacity 0.3s; cursor: pointer; border: 1px solid #00ffcc; background: rgba(0,0,0,0.6); color: #fff; padding: 4px 12px; border-radius: 20px; font-family: 'Sarabun', sans-serif;">🙏
-                    ร่วมสร้างวิหารธรรม</button>
-                <button id="vr-guide-btn"
-                    style="display:none; transition: opacity 0.3s; cursor: pointer; border: 1px solid #e94560; background: rgba(0,0,0,0.6); color: #fff; padding: 4px 12px; border-radius: 20px; font-family: 'Sarabun', sans-serif;">👓
-                    แนะนำวิธีใช้งาน VR</button>
-            </div>
+
         </div>
 
         <!-- ฝั่งขวา (นิทรรศการ): เรียงแนวตั้งชิดขวาเหมือนกัน -->
@@ -390,6 +379,41 @@
                 ▶️ ทัชที่ปุ่มกลาง Play บนจอ YouTube เพื่อชมไฟล์นำเสนอ
             </div>
         </div>
+
+        <!-- [เมนูใหม่] ปุ่มแคปซูลตรงกลางด้านบน (ขอขมา | บอร์ด) -->
+        <div id="top-capsule-menu" style="
+        position: absolute; 
+        top: 20px; 
+        left: 50%; 
+        transform: translateX(-50%); 
+        display: flex; 
+        background: rgba(0, 0, 0, 0.65); 
+        border: 1px solid rgba(255, 215, 0, 0.4); 
+        border-radius: 30px; 
+        overflow: hidden; 
+        pointer-events: auto; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        z-index: 1001;
+    ">
+            <button id="pray-btn" style="
+            background: transparent; border: none; border-right: 1px solid rgba(255,255,255,0.2); 
+            color: #ffd700; padding: 8px 20px; font-family: 'Sarabun', sans-serif; font-size: 15px; font-weight: bold; 
+            cursor: pointer; transition: background 0.3s;
+        " onmouseover="this.style.background='rgba(255,215,0,0.2)'" onmouseout="this.style.background='transparent'">
+                🙏 ขอขมาพระรัตนตรัย
+            </button>
+
+            <button id="info-board-btn" style="
+            background: transparent; border: none; 
+            color: #00ffcc; padding: 8px 20px; font-family: 'Sarabun', sans-serif; font-size: 15px; font-weight: bold; 
+            cursor: pointer; transition: background 0.3s;
+        " onmouseover="this.style.background='rgba(0,255,204,0.2)'" onmouseout="this.style.background='transparent'">
+                📢 บอร์ดประชาสัมพันธ์
+            </button>
+        </div>
+
+        
+
     </div>
 
     <!-- ปุ่มปกติที่ยังคงลอยอิสระ -->

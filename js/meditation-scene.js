@@ -10,10 +10,8 @@ import { createFireflies, updateFireflies } from './fireflies.js';
 
 export function setupMeditationScene(renderer, cssRenderer, db, currentUserName) {
     const scene = new THREE.Scene();
-    // [เพิ่มใหม่] ประกาศหมอกไว้ตั้งแต่เริ่ม เพื่อให้โมเดลทุกชิ้นรู้จักหมอก
     scene.fog = new THREE.FogExp2(0xa3c4d1, 0.02);
     
-    // --- 1. โหลดภาพพื้นหลัง 360 องศา ---
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load('textures/trees.jpg', (texture) => {
         texture.mapping = THREE.EquirectangularReflectionMapping;
@@ -21,15 +19,12 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         scene.background = texture;
     });
 
-    // --- 2. เรียกใช้งานหิ่งห้อยจากไฟล์แยก ---
     let fireflies = createFireflies();
     scene.add(fireflies);
 
-    // --- 3. ระบบไฟและบรรยากาศ (สลับกลางวัน-กลางคืน) ---
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); scene.add(ambientLight);
     const pointLight = new THREE.PointLight(0xffcc80, 1.5, 15); pointLight.position.set(0, 4, -2); scene.add(pointLight);
     
-    // [เพิ่มใหม่] ไฟแสงจันทร์ (Cinematic Moonlight สีฟ้า) สาดลงมาที่ลาน
     const moonLight = new THREE.DirectionalLight(0x4a8df8, 0.0); 
     moonLight.position.set(5, 10, 5); 
     moonLight.target.position.set(0, 0, 0);
@@ -44,11 +39,8 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
 
         if (isNight) {
             if (scene.backgroundIntensity !== undefined) scene.backgroundIntensity = 0.15; 
-            
-            // [แก้ใหม่] แค่เปลี่ยนสีและความหนาแน่น แทนการ new หมอกใหม่
-            scene.fog.color.setHex(0x08152b); // สีหมอกกลางคืน (น้ำเงินเข้ม)
-            scene.fog.density = 0.05; // ปรับตัวเลขนี้ได้ครับ (ยิ่งเยอะหมอกยิ่งหนา)
-            
+            scene.fog.color.setHex(0x08152b);
+            scene.fog.density = 0.05; 
             ambientLight.color.setHex(0x2a3b5c); 
             ambientLight.intensity = 0.6; 
             moonLight.intensity = 1.2; 
@@ -56,11 +48,8 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             if (fireflies) fireflies.visible = true;
         } else {
             if (scene.backgroundIntensity !== undefined) scene.backgroundIntensity = 1.0;
-            
-            // [แก้ใหม่] กลับเป็นสีหมอกกลางวัน
-            scene.fog.color.setHex(0xa3c4d1); // สีหมอกกลางวัน (ฟ้าอมเทา)
-            scene.fog.density = 0.015; // กลางวันหมอกจางๆ
-            
+            scene.fog.color.setHex(0xa3c4d1);
+            scene.fog.density = 0.015; 
             ambientLight.color.setHex(0xffffff);
             ambientLight.intensity = 0.8;
             moonLight.intensity = 0.0; 
@@ -85,7 +74,8 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     controls.rotateSpeed = -1.0;
 
     let currentScheduleStatus = "โหมด: สแตนด์บาย";
-    let currentSeatStatus = "สถานะ: คลิกเลือกเบาะ หรือคลิกจุดสีทองหน้าบอร์ด";
+    let currentSeatStatus = "สถานะ: คลิกเลือกเบาะ หรือเลือกเมนูด้านบน";
+    let currentOverrideMode = null; 
 
     // --- Firebase Logic & Bots ---
     const ROOM_CAPACITY = 30;
@@ -222,13 +212,21 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     }
     joinRoom();
 
-    const altarGroup = new THREE.Group(); altarGroup.position.set(-3.2, 0, -4.5); scene.add(altarGroup);
-    const table = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.8, 1.0), new THREE.MeshStandardMaterial({ color: 0x4a2e18 })); table.position.set(0, 0.4, 0); altarGroup.add(table);
+    // --- 1. ย้ายโต๊ะหมู่บูชาและพระประธานไปทางซ้าย ---
+    const altarGroup = new THREE.Group(); 
+    altarGroup.position.set(-6.5, 0, -5.5); 
+    altarGroup.rotation.y = Math.PI / 6; 
+    scene.add(altarGroup);
+    
+    // [แก้ไข] ขยายความกว้างโต๊ะ (แกน X เป็น 3.8) และความลึก (แกน Z เป็น 1.8) ให้กว้างสมกับฐานพระ
+    const table = new THREE.Mesh(new THREE.BoxGeometry(3.8, 2.5, 1.8), new THREE.MeshStandardMaterial({ color: 0x4a2e18 })); 
+    table.position.set(0, 1.25, 0); 
+    altarGroup.add(table);
 
     loadBuddhaWithEffects(altarGroup);
 
     // --- YouTube CSS3D ---
-    const tvGroup = new THREE.Group(); tvGroup.position.set(1.5, 2.9, -4.8); scene.add(tvGroup);
+    const tvGroup = new THREE.Group(); tvGroup.position.set(0, 2.9, -5.5); scene.add(tvGroup); 
     
     const tvFrame = new THREE.Mesh(new THREE.BoxGeometry(7.2, 4.2, 0.2), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 })); 
     tvGroup.add(tvFrame);
@@ -270,6 +268,17 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     const cssObject = new CSS3DObject(div); cssObject.position.set(0, 0, 0.12); cssObject.scale.set(0.01, 0.01, 0.01); tvGroup.add(cssObject);
 
     function updateVideoAndSchedule() {
+        if (currentOverrideMode === 'PRAY') {
+            const targetVideoUrl = `https://www.youtube.com/embed/O9RwxXP1Dwg?autoplay=1`; 
+            const newScheduleStatus = "โหมด: ขอขมาและบูชาพระรัตนตรัย";
+            
+            if (currentScheduleStatus !== newScheduleStatus || !iframe.src.includes('O9RwxXP1Dwg')) {
+                currentScheduleStatus = newScheduleStatus;
+                iframe.src = targetVideoUrl;
+            }
+            return; 
+        }
+
         const now = new Date(); 
         const curMins = now.getHours() * 60 + now.getMinutes();
         const curSeconds = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds(); 
@@ -340,6 +349,35 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     const vrTextTexture = new THREE.CanvasTexture(canvas); vrTextTexture.colorSpace = THREE.SRGBColorSpace;
     const vrScreen = new THREE.Mesh(new THREE.PlaneGeometry(7.0, 3.9), new THREE.MeshBasicMaterial({ map: vrTextTexture })); vrScreen.position.set(0, 0, 0.11); tvGroup.add(vrScreen);
 
+    // --- 2. ยุบรวม Board ทั้ง 3 เป็นบอร์ดเดียว (PR Board 3-in-1) ไว้ทางขวา ---
+    const hotspotGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.05, 32);
+    const hotspotMat = new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0x886600 });
+    const backBtnGeo = new THREE.PlaneGeometry(1.05, 0.3);
+    const warpBtnGeo = new THREE.PlaneGeometry(1.1, 0.3);
+    const hitboxMat = new THREE.MeshBasicMaterial({ visible: false });
+    
+    const prGroup = new THREE.Group(); 
+    prGroup.position.set(5.5, 1.925, -5.5); 
+    prGroup.rotation.y = -Math.PI / 8; 
+    scene.add(prGroup);
+    
+    const prFrame = new THREE.Mesh(new THREE.BoxGeometry(2.7, 3.95, 0.1), new THREE.MeshStandardMaterial({ color: 0x4a2b18, roughness: 1.0 })); prGroup.add(prFrame);
+    
+    const prCanvas = document.createElement('canvas'); prCanvas.width = 500; prCanvas.height = 750; 
+    const prCtx = prCanvas.getContext('2d');
+    const prTexture = new THREE.CanvasTexture(prCanvas); prTexture.colorSpace = THREE.SRGBColorSpace;
+    const prPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.5, 3.75), 
+        new THREE.MeshBasicMaterial({ 
+            map: prTexture, 
+            fog: false // ปิดหมอกไม่ให้บังบอร์ด PR
+        })
+    ); 
+    prPlane.position.set(0, 0, 0.06); prGroup.add(prPlane);
+
+    let prPageState = 0; 
+    let prOpacity = 1.0; 
+
     function drawBoardButtons(cCtx) {
         cCtx.fillStyle = '#d32f2f';
         if (cCtx.roundRect) { cCtx.beginPath(); cCtx.roundRect(25, 660, 210, 60, 15); cCtx.fill(); } else { cCtx.fillRect(25, 660, 210, 60); }
@@ -354,25 +392,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         cCtx.fillText('🌌 เข้าสู่ 31 ภพภูมิ', 365, 698);
     }
 
-    const hotspotGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.05, 32);
-    const hotspotMat = new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0x886600 });
-    const backBtnGeo = new THREE.PlaneGeometry(1.05, 0.3);
-    const warpBtnGeo = new THREE.PlaneGeometry(1.1, 0.3);
-    const hitboxMat = new THREE.MeshBasicMaterial({ visible: false });
-    
-    // 1. PR Board (แบบสลับหน้า)
-    const prGroup = new THREE.Group(); prGroup.position.set(-7.5, 1.925, 0.0); prGroup.rotation.y = Math.PI / 2; scene.add(prGroup);
-    const prFrame = new THREE.Mesh(new THREE.BoxGeometry(2.7, 3.95, 0.1), new THREE.MeshStandardMaterial({ color: 0x4a2b18, roughness: 1.0 })); prGroup.add(prFrame);
-    
-    const prCanvas = document.createElement('canvas'); prCanvas.width = 500; prCanvas.height = 750; 
-    const prCtx = prCanvas.getContext('2d');
-    const prTexture = new THREE.CanvasTexture(prCanvas); prTexture.colorSpace = THREE.SRGBColorSpace;
-    const prPlane = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 3.75), new THREE.MeshBasicMaterial({ map: prTexture })); 
-    prPlane.position.set(0, 0, 0.06); prGroup.add(prPlane);
-
-    let prPageState = 0; 
-    let prOpacity = 1.0; 
-
     function drawPRBoard() {
         prCtx.globalAlpha = 1.0; 
         
@@ -384,15 +403,15 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         prCtx.fillStyle = 'rgba(0, 0, 0, 0.15)';
         for (let i = 0; i < 500; i += 8) { if (Math.random() > 0.2) prCtx.fillRect(i, 0, Math.random() * 3 + 1, 750); }
         
-        prCtx.fillStyle = '#ffd700'; prCtx.font = 'bold 32px Sarabun, sans-serif'; prCtx.textAlign = 'center'; 
-        prCtx.fillText(appConfig.prBoard.title, 250, 60);
-        prCtx.beginPath(); prCtx.moveTo(80, 80); prCtx.lineTo(420, 80); prCtx.strokeStyle = '#ffd700'; prCtx.lineWidth = 2; prCtx.stroke();
-
         drawBoardButtons(prCtx); 
 
         prCtx.globalAlpha = prOpacity; 
 
         if (prPageState === 0) {
+            prCtx.fillStyle = '#ffd700'; prCtx.font = 'bold 32px Sarabun, sans-serif'; prCtx.textAlign = 'center'; 
+            prCtx.fillText(appConfig.prBoard.title, 250, 60);
+            prCtx.beginPath(); prCtx.moveTo(80, 80); prCtx.lineTo(420, 80); prCtx.strokeStyle = '#ffd700'; prCtx.lineWidth = 2; prCtx.stroke();
+            
             prCtx.fillStyle = '#00ffcc'; prCtx.font = 'bold 26px Sarabun, sans-serif'; 
             prCtx.fillText(appConfig.prBoard.scheduleTitle, 250, 130);
             
@@ -402,31 +421,34 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             });
             
             prCtx.textAlign = 'center'; prCtx.fillStyle = '#aaaaaa'; prCtx.font = '16px Sarabun, sans-serif';
-            prCtx.fillText('หน้า 1/2 : สลับหน้าอัตโนมัติ', 250, 630);
+            prCtx.fillText('หน้า 1/3 : ตารางออกอากาศ', 250, 630);
             
-        } else {
-            prCtx.textAlign = 'center'; prCtx.fillStyle = '#ffeb3b'; prCtx.font = 'bold 26px Sarabun, sans-serif'; 
-            prCtx.fillText(appConfig.prBoard.contactTitle, 250, 160);
-            
-            prCtx.fillStyle = '#ffffff'; prCtx.font = '22px Sarabun, sans-serif';
-            appConfig.prBoard.contactLines.forEach((line, index) => { 
-                prCtx.fillText(line, 250, 220 + (index * 40)); 
-            });
-            
-            prCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-            if (prCtx.roundRect) { 
-                prCtx.beginPath(); prCtx.roundRect(70, 420, 360, 110, 15); prCtx.fill(); 
-                prCtx.strokeStyle = '#ffd700'; prCtx.lineWidth = 2; prCtx.stroke();
-            } else { 
-                prCtx.fillRect(70, 420, 360, 110); 
-            }
-            prCtx.fillStyle = '#00ffcc'; prCtx.font = 'bold 22px Sarabun, sans-serif'; 
-            prCtx.fillText(appConfig.prBoard.contactBoxTitle, 250, 465);
-            prCtx.fillStyle = '#ffffff'; prCtx.font = 'bold 34px Sarabun, sans-serif'; 
-            prCtx.fillText(appConfig.prBoard.contactPhone, 250, 510);
+        } else if (prPageState === 1) {
+            prCtx.fillStyle = '#ffd700'; prCtx.font = 'bold 32px Sarabun, sans-serif'; prCtx.textAlign = 'center'; prCtx.fillText('🙏 ร่วมสร้างวิหารธรรมออนไลน์', 250, 60);
+            prCtx.beginPath(); prCtx.moveTo(40, 80); prCtx.lineTo(460, 80); prCtx.strokeStyle = '#ffd700'; prCtx.lineWidth = 2; prCtx.stroke();
+            prCtx.fillStyle = '#ffffff'; prCtx.font = 'bold 22px Sarabun, sans-serif'; prCtx.fillText('"ทุกการภาวนาที่เกิดขึ้น ณ พื้นที่แห่งนี้', 250, 130); prCtx.fillText('ท่านคือผู้มีส่วนร่วมในมหากุศล"', 250, 165);
+            prCtx.fillStyle = '#cccccc'; prCtx.font = '18px Sarabun, sans-serif'; prCtx.fillText('หากผลงานนี้มีประโยชน์กับคุณ หรือมีไอเดียอยากเสนอแนะเพิ่มเติม', 250, 230);
+            prCtx.fillText('สามารถทักมาพูดคุย เลี้ยงกาแฟ หรือร่วมสนับสนุนโปรเจกต์ได้เลย', 250, 260); prCtx.fillText('ครับ ยินดีรับฟังทุกความคิดเห็น!', 250, 290);
+            prCtx.fillStyle = '#ffffff';
+            if (prCtx.roundRect) { prCtx.beginPath(); prCtx.roundRect(50, 360, 400, 240, 15); prCtx.fill(); prCtx.strokeStyle = '#ffd700'; prCtx.lineWidth = 4; prCtx.stroke();
+            } else { prCtx.fillRect(50, 360, 400, 240); }
+            prCtx.fillStyle = '#666666'; prCtx.font = 'bold 24px Sarabun, sans-serif'; prCtx.fillText('LINE ID / เบอร์โทร:', 250, 410);
+            prCtx.fillStyle = '#4CAF50'; prCtx.font = 'bold 36px Sarabun, sans-serif'; prCtx.fillText('0926533228', 250, 460);
             
             prCtx.fillStyle = '#aaaaaa'; prCtx.font = '16px Sarabun, sans-serif';
-            prCtx.fillText('หน้า 2/2 : สลับหน้าอัตโนมัติ', 250, 630);
+            prCtx.fillText('หน้า 2/3 : ผู้พัฒนา', 250, 630);
+        } else {
+            prCtx.fillStyle = '#e94560'; prCtx.font = 'bold 36px Sarabun, sans-serif'; prCtx.textAlign = 'center'; prCtx.fillText('👓 แนะนำการรับชมด้วยแว่น VR', 250, 70);
+            prCtx.beginPath(); prCtx.moveTo(40, 90); prCtx.lineTo(460, 90); prCtx.strokeStyle = '#e94560'; prCtx.lineWidth = 2; prCtx.stroke();
+            prCtx.fillStyle = '#ffffff'; prCtx.font = '22px Sarabun, sans-serif'; prCtx.fillText('นิทรรศการนี้ถูกออกแบบมาเพื่อรองรับการรับชม', 250, 140); prCtx.fillText('แบบ 360 องศาเต็มรูปแบบ ในโลกเสมือนจริง', 250, 175);
+            prCtx.fillStyle = '#00ffcc'; prCtx.font = 'bold 24px Sarabun, sans-serif'; prCtx.fillText('อุปกรณ์ที่รองรับ:', 250, 240);
+            prCtx.fillStyle = '#cccccc'; prCtx.font = '22px Sarabun, sans-serif'; prCtx.fillText('• Meta Quest 2, 3, Pro', 250, 275); prCtx.fillText('• Pico 4 / Apple Vision Pro', 250, 310); prCtx.fillText('• แว่น PC VR อื่นๆ ผ่านเบราว์เซอร์', 250, 345);
+            prCtx.fillStyle = '#ff9800'; prCtx.font = 'bold 24px Sarabun, sans-serif'; prCtx.fillText('วิธีเข้าใช้งาน:', 250, 420);
+            prCtx.fillStyle = '#ffffff'; prCtx.font = '20px Sarabun, sans-serif'; prCtx.fillText('1. เปิดแอปเบราว์เซอร์ (Browser) ภายในแว่น VR', 250, 460); prCtx.fillText('2. พิมพ์ URL เพื่อเข้าสู่เว็บไซต์นี้', 250, 495);
+            prCtx.fillText('3. คลิกที่ปุ่ม "ENTER VR" บริเวณขอบจอด้านล่าง', 250, 530); prCtx.fillText('4. สัมผัสประสบการณ์โลกเสมือนจริงได้ทันที', 250, 565);
+            
+            prCtx.fillStyle = '#aaaaaa'; prCtx.font = '16px Sarabun, sans-serif';
+            prCtx.fillText('หน้า 3/3 : คำแนะนำ VR', 250, 630);
         }
 
         prCtx.globalAlpha = 1.0; 
@@ -444,7 +466,7 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 prOpacity = 0;
                 clearInterval(fadeOutTimer); 
                 
-                prPageState = (prPageState + 1) % 2; 
+                prPageState = (prPageState + 1) % 3; 
                 drawPRBoard();
                 
                 let fadeInTimer = setInterval(() => {
@@ -462,74 +484,13 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         
     }, 8000); 
 
-    const prHotspot = new THREE.Mesh(hotspotGeo, hotspotMat); prHotspot.position.set(-5.0, 0.025, 0.0);
-    prHotspot.userData = { isHotspot: true, type: "PR", targetPos: new THREE.Vector3(-5.0, 1.5, 0.0), lookAtPos: new THREE.Vector3(-7.5, 1.675, 0.0) }; scene.add(prHotspot);
+    const prHotspot = new THREE.Mesh(hotspotGeo, hotspotMat); prHotspot.position.set(4.0, 0.025, -4.0);
+    prHotspot.userData = { isHotspot: true, type: "PR", targetPos: new THREE.Vector3(2.5, 1.5, -3.0), lookAtPos: new THREE.Vector3(5.5, 1.675, -5.5) }; scene.add(prHotspot);
 
     const prBackHitbox = new THREE.Mesh(backBtnGeo, hitboxMat); prBackHitbox.position.set(-0.6, -1.575, 0.07); prBackHitbox.userData = { isBackButton: true }; prGroup.add(prBackHitbox);
     const prWarpHitbox = new THREE.Mesh(warpBtnGeo, hitboxMat); prWarpHitbox.position.set(0.575, -1.575, 0.07); prWarpHitbox.userData = { isWarpButton: true }; prGroup.add(prWarpHitbox);
 
-    // 2. Dev Board
-    const devGroup = new THREE.Group(); devGroup.position.set(7.5, 1.925, 0.0); devGroup.rotation.y = -Math.PI / 2; scene.add(devGroup);
-    const devFrame = new THREE.Mesh(new THREE.BoxGeometry(2.7, 3.95, 0.1), new THREE.MeshStandardMaterial({ color: 0x4a2b18, roughness: 1.0 })); devGroup.add(devFrame);
-    const devCanvas = document.createElement('canvas'); devCanvas.width = 500; devCanvas.height = 750; const devCtx = devCanvas.getContext('2d');
-    const devWoodGrad = devCtx.createLinearGradient(0, 0, 0, 750);
-    devWoodGrad.addColorStop(0, '#5c3a21'); devWoodGrad.addColorStop(0.4, '#422815'); devWoodGrad.addColorStop(0.8, '#5c3a21'); devWoodGrad.addColorStop(1, '#2e1b0d');
-    devCtx.fillStyle = devWoodGrad; devCtx.fillRect(0, 0, 500, 750); devCtx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-    for (let i = 0; i < 500; i += 8) { if (Math.random() > 0.2) devCtx.fillRect(i, 0, Math.random() * 3 + 1, 750); }
-    devCtx.fillStyle = '#ffd700'; devCtx.font = 'bold 32px Sarabun, sans-serif'; devCtx.textAlign = 'center'; devCtx.fillText('🙏 ร่วมสร้างวิหารธรรมออนไลน์', 250, 60);
-    devCtx.beginPath(); devCtx.moveTo(40, 80); devCtx.lineTo(460, 80); devCtx.strokeStyle = '#ffd700'; devCtx.lineWidth = 2; devCtx.stroke();
-    devCtx.fillStyle = '#ffffff'; devCtx.font = 'bold 22px Sarabun, sans-serif'; devCtx.fillText('"ทุกการภาวนาที่เกิดขึ้น ณ พื้นที่แห่งนี้', 250, 130); devCtx.fillText('ท่านคือผู้มีส่วนร่วมในมหากุศล"', 250, 165);
-    devCtx.fillStyle = '#cccccc'; devCtx.font = '18px Sarabun, sans-serif'; devCtx.fillText('หากผลงานนี้มีประโยชน์กับคุณ หรือมีไอเดียอยากเสนอแนะเพิ่มเติม', 250, 230);
-    devCtx.fillText('สามารถทักมาพูดคุย เลี้ยงกาแฟ หรือร่วมสนับสนุนโปรเจกต์ได้เลย', 250, 260); devCtx.fillText('ครับ ยินดีรับฟังทุกความคิดเห็น!', 250, 290);
-    devCtx.fillStyle = '#ffffff';
-    if (devCtx.roundRect) { devCtx.beginPath(); devCtx.roundRect(50, 360, 400, 240, 15); devCtx.fill(); devCtx.strokeStyle = '#ffd700'; devCtx.lineWidth = 4; devCtx.stroke();
-    } else { devCtx.fillRect(50, 360, 400, 240); }
-    devCtx.fillStyle = '#666666'; devCtx.font = 'bold 24px Sarabun, sans-serif'; devCtx.fillText('LINE ID / เบอร์โทร:', 250, 410);
-    devCtx.fillStyle = '#4CAF50'; devCtx.font = 'bold 36px Sarabun, sans-serif'; devCtx.fillText('0926533228', 250, 460);
-    devCtx.fillStyle = '#5ac346';
-    if (devCtx.roundRect) { devCtx.beginPath(); devCtx.roundRect(100, 500, 300, 60, 30); devCtx.fill(); } else { devCtx.fillRect(100, 500, 300, 60); }
-    devCtx.fillStyle = '#ffffff'; devCtx.font = 'bold 22px Sarabun, sans-serif'; devCtx.fillText('💬 ทักไลน์มาคุยกัน', 250, 538);
-    drawBoardButtons(devCtx); 
-
-    const devTexture = new THREE.CanvasTexture(devCanvas); devTexture.colorSpace = THREE.SRGBColorSpace;
-    const devPlane = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 3.75), new THREE.MeshBasicMaterial({ map: devTexture })); devPlane.position.set(0, 0, 0.06); devGroup.add(devPlane);
-
-    const lineBtnGeo = new THREE.PlaneGeometry(1.5, 0.3); const lineBtnMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0 });
-    const lineHitbox = new THREE.Mesh(lineBtnGeo, lineBtnMat); lineHitbox.position.set(0, -0.775, 0.07); lineHitbox.userData = { isLineButton: true }; devGroup.add(lineHitbox);
-
-    const devHotspot = new THREE.Mesh(hotspotGeo, hotspotMat.clone()); devHotspot.position.set(5.0, 0.025, 0.0);
-    devHotspot.userData = { isHotspot: true, type: "DEV", targetPos: new THREE.Vector3(5.0, 1.5, 0.0), lookAtPos: new THREE.Vector3(7.5, 1.675, 0.0) }; scene.add(devHotspot);
-    
-    const devBackHitbox = new THREE.Mesh(backBtnGeo, hitboxMat); devBackHitbox.position.set(-0.6, -1.575, 0.07); devBackHitbox.userData = { isBackButton: true }; devGroup.add(devBackHitbox);
-    const devWarpHitbox = new THREE.Mesh(warpBtnGeo, hitboxMat); devWarpHitbox.position.set(0.575, -1.575, 0.07); devWarpHitbox.userData = { isWarpButton: true }; devGroup.add(devWarpHitbox);
-
-    // 3. VR Guide Board
-    const vrGuideGroup = new THREE.Group(); vrGuideGroup.position.set(-5.5, 1.925, -5.0); vrGuideGroup.rotation.y = Math.PI / 4; scene.add(vrGuideGroup);
-    const vrFrame = new THREE.Mesh(new THREE.BoxGeometry(2.7, 3.95, 0.1), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 })); vrGuideGroup.add(vrFrame);
-    const vrCanvas = document.createElement('canvas'); vrCanvas.width = 500; vrCanvas.height = 750; const vrCtx = vrCanvas.getContext('2d');
-    const vrBgGrad = vrCtx.createLinearGradient(0, 0, 0, 750); vrBgGrad.addColorStop(0, '#1a1a2e'); vrBgGrad.addColorStop(1, '#16213e');
-    vrCtx.fillStyle = vrBgGrad; vrCtx.fillRect(0, 0, 500, 750);
-    vrCtx.strokeStyle = '#0f3460'; vrCtx.lineWidth = 10; vrCtx.strokeRect(5, 5, 490, 740);
-    vrCtx.strokeStyle = '#e94560'; vrCtx.lineWidth = 2; vrCtx.strokeRect(15, 15, 470, 720);
-    vrCtx.fillStyle = '#e94560'; vrCtx.font = 'bold 36px Sarabun, sans-serif'; vrCtx.textAlign = 'center'; vrCtx.fillText('👓 แนะนำการรับชมด้วยแว่น VR', 250, 70);
-    vrCtx.beginPath(); vrCtx.moveTo(40, 90); vrCtx.lineTo(460, 90); vrCtx.strokeStyle = '#e94560'; vrCtx.lineWidth = 2; vrCtx.stroke();
-    vrCtx.fillStyle = '#ffffff'; vrCtx.font = '22px Sarabun, sans-serif'; vrCtx.fillText('นิทรรศการนี้ถูกออกแบบมาเพื่อรองรับการรับชม', 250, 140); vrCtx.fillText('แบบ 360 องศาเต็มรูปแบบ ในโลกเสมือนจริง', 250, 175);
-    vrCtx.fillStyle = '#00ffcc'; vrCtx.font = 'bold 24px Sarabun, sans-serif'; vrCtx.fillText('อุปกรณ์ที่รองรับ:', 250, 240);
-    vrCtx.fillStyle = '#cccccc'; vrCtx.font = '22px Sarabun, sans-serif'; vrCtx.fillText('• Meta Quest 2, 3, Pro', 250, 275); vrCtx.fillText('• Pico 4 / Apple Vision Pro', 250, 310); vrCtx.fillText('• แว่น PC VR อื่นๆ ผ่านเบราว์เซอร์', 250, 345);
-    vrCtx.fillStyle = '#ff9800'; vrCtx.font = 'bold 24px Sarabun, sans-serif'; vrCtx.fillText('วิธีเข้าใช้งาน:', 250, 420);
-    vrCtx.fillStyle = '#ffffff'; vrCtx.font = '20px Sarabun, sans-serif'; vrCtx.fillText('1. เปิดแอปเบราว์เซอร์ (Browser) ภายในแว่น VR', 250, 460); vrCtx.fillText('2. พิมพ์ URL เพื่อเข้าสู่เว็บไซต์นี้', 250, 495);
-    vrCtx.fillText('3. คลิกที่ปุ่ม "ENTER VR" บริเวณขอบจอด้านล่าง', 250, 530); vrCtx.fillText('4. สัมผัสประสบการณ์โลกเสมือนจริงได้ทันที', 250, 565);
-    drawBoardButtons(vrCtx);
-
-    const vrTexture = new THREE.CanvasTexture(vrCanvas); vrTexture.colorSpace = THREE.SRGBColorSpace;
-    const vrPlane = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 3.75), new THREE.MeshBasicMaterial({ map: vrTexture })); vrPlane.position.set(0, 0, 0.06); vrGuideGroup.add(vrPlane);
-
-    const vrTargetPos = new THREE.Vector3(-3.5, 1.5, -3.0); const vrLookAtPos = new THREE.Vector3(-5.5, 1.675, -5.0);
-    
-    const vrBackHitbox = new THREE.Mesh(backBtnGeo, hitboxMat); vrBackHitbox.position.set(-0.6, -1.575, 0.07); vrBackHitbox.userData = { isBackButton: true }; vrGuideGroup.add(vrBackHitbox);
-    const vrWarpHitbox = new THREE.Mesh(warpBtnGeo, hitboxMat); vrWarpHitbox.position.set(0.575, -1.575, 0.07); vrWarpHitbox.userData = { isWarpButton: true }; vrGuideGroup.add(vrWarpHitbox);
-
-    const interactables = [...cushionsList, prHotspot, devHotspot, lineHitbox, prBackHitbox, prWarpHitbox, devBackHitbox, devWarpHitbox, vrBackHitbox, vrWarpHitbox];
+    const interactables = [...cushionsList, prHotspot, prBackHitbox, prWarpHitbox];
 
     let isSeated = false, isReading = false, isTransitioning = false, mySelectedCushion = null;
     const targetCamPos = new THREE.Vector3(), targetLookAt = new THREE.Vector3();
@@ -541,17 +502,22 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             mySelectedCushion.material.color.setHex(0x3b2219); mySelectedCushion = null;
         }
         document.getElementById('stand-btn').style.display = 'none';
-        
         document.getElementById('warp-btn').style.display = 'block';
         
-        const bottomMenu = document.getElementById('bottom-menu-hud');
-        if (bottomMenu) bottomMenu.style.display = 'flex';
-
         toggleReactionUI(true);
 
         isSeated = false; isReading = false; isTransitioning = true; controls.enabled = false;
         targetCamPos.copy(defaultCameraPos); targetLookAt.copy(defaultTargetPos);
-        currentSeatStatus = "สถานะ: คลิกเลือกเบาะ หรือคลิกจุดสีทองหน้าบอร์ด";
+        currentSeatStatus = "สถานะ: คลิกเลือกเบาะ หรือเลือกเมนูด้านบน";
+
+        if (currentOverrideMode !== null) {
+            currentOverrideMode = null;
+            updateVideoAndSchedule();
+        }
+
+        // โชว์ปุ่มเมนูแคปซูลกลับมา
+        const topCapsule = document.getElementById('top-capsule-menu');
+        if (topCapsule) topCapsule.style.display = 'flex';
     }
 
     function moveToBoard(targetPos, lookAtPos, statusText) {
@@ -559,14 +525,51 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         targetCamPos.copy(targetPos); targetLookAt.copy(lookAtPos);
         isReading = true; isTransitioning = true; controls.enabled = false;
         
-        document.getElementById('stand-btn').style.display = 'none';
+        document.getElementById('stand-btn').style.display = 'block'; 
         document.getElementById('warp-btn').style.display = 'none';
-        const bottomMenu = document.getElementById('bottom-menu-hud');
-        if (bottomMenu) bottomMenu.style.display = 'none';
         
         toggleReactionUI(false);
         
         currentSeatStatus = `สถานะ: ยืนอ่าน (${statusText})`;
+    }
+
+    // --- 3. เพิ่มการเชื่อมต่อปุ่มแคปซูลเมนูด้านบน ---
+    const prayBtn = document.getElementById('pray-btn');
+    const infoBoardBtn = document.getElementById('info-board-btn');
+    const topCapsule = document.getElementById('top-capsule-menu'); 
+
+    if (prayBtn) {
+        prayBtn.addEventListener('click', () => {
+            currentOverrideMode = 'PRAY'; 
+            updateVideoAndSchedule();
+
+            // ใช้พิกัดจากเครื่องมือวัด มุมขอขมา
+            moveToBoard(
+                new THREE.Vector3(-2.49, 2.20, -1.27), 
+                new THREE.Vector3(-3.00, 2.00, -5.50), 
+                "บูชาพระรัตนตรัย"
+            );
+            
+            // ซ่อนเมนูแคปซูลด้านบนทั้งหมดเมื่อเข้าโหมดนี้
+            if (topCapsule) topCapsule.style.display = 'none';
+        });
+    }
+
+    if (infoBoardBtn) {
+        infoBoardBtn.addEventListener('click', () => {
+            currentOverrideMode = null; 
+            updateVideoAndSchedule();
+
+            // ใช้พิกัดจากเครื่องมือวัด มุมกระดานประชาสัมพันธ์
+            moveToBoard(
+                new THREE.Vector3(1.67, 2.05, -1.29),  
+                new THREE.Vector3(2.00, 2.00, -5.50),  
+                "กระดานประชาสัมพันธ์"
+            );
+            
+            // ซ่อนเมนูแคปซูลด้านบนทั้งหมดเมื่อเข้าโหมดนี้
+            if (topCapsule) topCapsule.style.display = 'none';
+        });
     }
 
     window.addEventListener('click', (event) => {
@@ -590,12 +593,10 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 targetCamPos.copy(obj.userData.targetPos); targetLookAt.copy(obj.userData.lookAtPos);
                 isReading = true; isTransitioning = true; controls.enabled = false;
                 
-                document.getElementById('stand-btn').style.display = 'none';
+                document.getElementById('stand-btn').style.display = 'block';
                 document.getElementById('warp-btn').style.display = 'none';
-                const bottomMenu = document.getElementById('bottom-menu-hud');
-                if (bottomMenu) bottomMenu.style.display = 'none';
                 
-                const boardType = obj.userData.type === "PR" ? "กระดานสะพานบุญ" : "บอร์ดสนับสนุนผู้พัฒนา";
+                const boardType = obj.userData.type === "PR" ? "กระดานประชาสัมพันธ์" : "บอร์ดอื่นๆ";
                 currentSeatStatus = `สถานะ: ยืนอ่าน (${boardType})`;
 
             } else if (!obj.userData.isOccupied) {
@@ -604,15 +605,14 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 
                 const pos = new THREE.Vector3(); obj.getWorldPosition(pos);
                 targetCamPos.set(pos.x, 1.0, pos.z);
-                const dir = new THREE.Vector3(1.5, 2.9, -4.8).sub(targetCamPos).normalize();
+                
+                const dir = new THREE.Vector3(0, 2.9, -5.5).sub(targetCamPos).normalize();
                 targetLookAt.copy(targetCamPos).add(dir.multiplyScalar(0.01));
                 
                 isSeated = true; isTransitioning = true; controls.enabled = false;
                 
                 document.getElementById('stand-btn').style.display = 'block';
                 document.getElementById('warp-btn').style.display = 'none';
-                const bottomMenu = document.getElementById('bottom-menu-hud');
-                if (bottomMenu) bottomMenu.style.display = 'none';
                 
                 currentSeatStatus = `สถานะ: นั่งสมาธิ แถว ${obj.userData.row}, ตัวที่ ${obj.userData.col}`;
             }
@@ -620,19 +620,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     });
 
     document.getElementById('stand-btn').addEventListener('click', goBackToStandby);
-
-    const prBoardBtn = document.getElementById('pr-board-btn');
-    if (prBoardBtn) prBoardBtn.addEventListener('click', () => moveToBoard(new THREE.Vector3(-5.0, 1.5, 0.0), new THREE.Vector3(-7.5, 1.675, 0.0), "กระดานสะพานบุญ"));
-
-    const devBoardBtn = document.getElementById('dev-board-btn');
-    if (devBoardBtn) devBoardBtn.addEventListener('click', () => moveToBoard(new THREE.Vector3(5.0, 1.5, 0.0), new THREE.Vector3(7.5, 1.675, 0.0), "บอร์ดสนับสนุนผู้พัฒนา"));
-
-    const vrGuideBtn = document.getElementById('vr-guide-btn');
-    if (vrGuideBtn) {
-        const newVrGuideBtn = vrGuideBtn.cloneNode(true);
-        vrGuideBtn.parentNode.replaceChild(newVrGuideBtn, vrGuideBtn);
-        newVrGuideBtn.addEventListener('click', () => moveToBoard(vrTargetPos, vrLookAtPos, "คำแนะนำ VR"));
-    }
 
     const rotatingEl = document.getElementById('rotating-status');
     let currentStatusIndex = 0; const statusColors = ['#ffd700', '#00ffcc'];
@@ -660,39 +647,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         if (lunarEl) lunarEl.style.display = 'none';
     }, 1000);
 
-    let bottomMenuState = 0;
-    setInterval(() => {
-        if (!scene.visible) return;
-
-        const prBtn = document.getElementById('pr-board-btn');
-        const devBtn = document.getElementById('dev-board-btn');
-        const vrBtn = document.getElementById('vr-guide-btn');
-
-        const vrButtonEl = document.getElementById('VRButton');
-        const isVrNeeded = vrButtonEl && (vrButtonEl.style.display === 'none' || vrButtonEl.textContent.includes('NOT'));
-
-        bottomMenuState++;
-        if (bottomMenuState > 2) bottomMenuState = 0;
-        
-        if (!isVrNeeded && bottomMenuState === 2) {
-            bottomMenuState = 0; 
-        }
-
-        if (prBtn) prBtn.style.opacity = 0;
-        if (devBtn) devBtn.style.opacity = 0;
-        if (vrBtn) vrBtn.style.opacity = 0;
-
-        setTimeout(() => {
-            if (prBtn) prBtn.style.display = 'none';
-            if (devBtn) devBtn.style.display = 'none';
-            if (vrBtn) vrBtn.style.display = 'none';
-
-            if (bottomMenuState === 0 && prBtn) { prBtn.style.display = 'inline-block'; prBtn.style.opacity = 1; }
-            else if (bottomMenuState === 1 && devBtn) { devBtn.style.display = 'inline-block'; devBtn.style.opacity = 1; }
-            else if (bottomMenuState === 2 && vrBtn) { vrBtn.style.display = 'inline-block'; vrBtn.style.opacity = 1; }
-        }, 300);
-    }, 5000);
-
     function onEnterScene() {
         div.style.display = 'block'; cssObject.visible = true; 
         window.currentActiveMainZone = 'meditation';
@@ -701,16 +655,10 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         updateServerStatusUI(); updateVideoAndSchedule(); 
         
         if (isSeated || isReading) {
-            if (isSeated) document.getElementById('stand-btn').style.display = 'block'; 
+            if (isSeated || isReading) document.getElementById('stand-btn').style.display = 'block'; 
             document.getElementById('warp-btn').style.display = 'none';
-            
-            const bottomMenu = document.getElementById('bottom-menu-hud');
-            if (bottomMenu) bottomMenu.style.display = 'none';
         } else {
             document.getElementById('warp-btn').style.display = 'block';
-            
-            const bottomMenu = document.getElementById('bottom-menu-hud');
-            if (bottomMenu) bottomMenu.style.display = 'flex';
         }
     }
     
@@ -718,10 +666,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         div.style.display = 'none'; cssObject.visible = false; 
         document.getElementById('stand-btn').style.display = 'none';
         document.getElementById('warp-btn').style.display = 'none';
-        
-        const bottomMenu = document.getElementById('bottom-menu-hud');
-        if (bottomMenu) bottomMenu.style.display = 'none';
-        
         iframe.src = ""; 
     }
 
@@ -744,15 +688,12 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             }
         } else if (controls.enabled) { controls.update(); }
 
-        // อัปเดตลูกไฟสวรรค์รอบพระประธาน
         if (scene.visible) {
             updateBuddhaEffects();
         }
 
-        // [แก้ใหม่] อัปเดตแอนิเมชันหิ่งห้อย (เรียกจากไฟล์แยก)
         if (scene.visible) updateFireflies();
 
-        // ซ่อนจอ YouTube เมื่อมองจากด้านหลัง (ป้องกันจอทะลุ)
         if (scene.visible) {
             const tvWorldPos = new THREE.Vector3();
             tvGroup.getWorldPosition(tvWorldPos);
@@ -769,6 +710,17 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             }
         }
     }
+
+    window.addEventListener('keydown', (event) => {
+        if (event.key === 'c' || event.key === 'C') {
+            const cam = camera.position;
+            const tgt = controls.target;
+            const coordText = `CamPos: ${cam.x.toFixed(2)}, ${cam.y.toFixed(2)}, ${cam.z.toFixed(2)}\nLookAt: ${tgt.x.toFixed(2)}, ${tgt.y.toFixed(2)}, ${tgt.z.toFixed(2)}`;
+            
+            console.log("พิกัดมุมกล้อง:\n" + coordText);
+            alert("จดตัวเลขนี้ส่งมาให้ผมได้เลยครับ:\n\n" + coordText);
+        }
+    });
 
     return { scene, camera, controls, update, onEnterScene, onExitScene };
 }
