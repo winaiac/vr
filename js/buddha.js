@@ -7,15 +7,13 @@ export function loadBuddhaWithEffects(altarGroup) {
     const tableHeight = 2.5; 
 
     // ==========================================
-    // 1. สร้างป้าย "คำขอขมา บูชาพระรัตนตรัย" สีทองเรืองแสง (แบบมีขอบ Margin สวยงาม)
+    // 1. สร้างป้าย "คำขอขมา บูชาพระรัตนตรัย" สีทองเรืองแสง
     // ==========================================
     const prayCanvas = document.createElement('canvas');
-    // ขยายพื้นที่ Canvas ให้กว้างเป็นพิเศษ (Ultra Wide) เพื่อเพิ่มพื้นที่ว่างซ้ายขวา
     prayCanvas.width = 2560; 
     prayCanvas.height = 1280; 
     const pCtx = prayCanvas.getContext('2d');
     
-    // วาดพื้นหลัง (กำหนดให้เว้นระยะจากขอบ Canvas เข้ามา 40px เพื่อสร้างกรอบ Margin)
     pCtx.fillStyle = 'rgba(0, 0, 0, 0.85)';
     if (pCtx.roundRect) {
         pCtx.roundRect(40, 40, 2480, 1200, 40);
@@ -27,7 +25,6 @@ export function loadBuddhaWithEffects(altarGroup) {
     pCtx.lineWidth = 10;
     pCtx.stroke();
 
-    // หัวข้อ
     pCtx.fillStyle = '#ffdf80';
     pCtx.shadowColor = '#ffdf80';
     pCtx.shadowBlur = 20;
@@ -35,7 +32,6 @@ export function loadBuddhaWithEffects(altarGroup) {
     pCtx.textAlign = 'center';
     pCtx.fillText('คำขอขมาและบูชาพระรัตนตรัย', 1280, 180);
 
-    // เนื้อหาบทสวดท่อนบน
     pCtx.shadowBlur = 0; 
     pCtx.fillStyle = '#ffffff';
     pCtx.font = 'bold 65px Sarabun, sans-serif'; 
@@ -44,7 +40,6 @@ export function loadBuddhaWithEffects(altarGroup) {
     pCtx.fillText('สัพพัง อะปะราธัง ขะมะถะ เม ภันเต', 1280, 560);
     pCtx.fillText('อุกาสะ ขะมามิ ภันเต', 1280, 660);
     
-    // เนื้อหาบทสวดท่อนล่าง (ประโยคยาว จะไม่ตกขอบแล้วเพราะเราขยาย Canvas เผื่อไว้กว้างมาก)
     pCtx.fillStyle = '#ffcc00';
     pCtx.font = 'bold 65px Sarabun, sans-serif'; 
     pCtx.fillText('อะระหัง สัมมาสัมพุทโธ ภะคะวา, พุทธัง ภะคะวันตัง อะภิวาเทมิ (กราบ)', 1280, 860);
@@ -54,7 +49,6 @@ export function loadBuddhaWithEffects(altarGroup) {
     const prayTex = new THREE.CanvasTexture(prayCanvas);
     prayTex.colorSpace = THREE.SRGBColorSpace;
     
-    // ปรับขนาดแผ่นป้าย 3D ให้สัมพันธ์กับ Canvas ใหม่
     const prayPlane = new THREE.Mesh(
         new THREE.PlaneGeometry(3.8, 1.9), 
         new THREE.MeshBasicMaterial({ 
@@ -65,7 +59,6 @@ export function loadBuddhaWithEffects(altarGroup) {
         })
     );
     
-    // [แก้ไข] ขยับป้ายให้ยื่นออกมาจากหน้าโต๊ะอีกนิด (Z จาก 0.95 เป็น 0.96) เพื่อแก้ปัญหากล่องดำซ้อนทับกัน (Z-fighting)
     prayPlane.position.set(0, tableHeight - 0.75, 1.10);
     prayPlane.rotation.x = -Math.PI / 12; 
     
@@ -126,9 +119,8 @@ export function loadBuddhaWithEffects(altarGroup) {
 }
 
 function createLocalizedEmbers() {
-    const group = new THREE.Group(); // สร้าง Group เพื่อรวมดาวหลายๆ เลเยอร์
+    const group = new THREE.Group(); 
 
-    // 1. วาด Texture ดาวประกายพฤกษ์ (ทำแค่ครั้งเดียวแล้วใช้ร่วมกัน)
     const canvas = document.createElement('canvas');
     canvas.width = 64; canvas.height = 64; 
     const ctx = canvas.getContext('2d');
@@ -152,7 +144,6 @@ function createLocalizedEmbers() {
 
     const texture = new THREE.CanvasTexture(canvas);
 
-    // 2. ฟังก์ชันย่อยสำหรับสร้างกลุ่มดาวแต่ละขนาดและความสว่าง
     function createStarLayer(size, opacity, count) {
         const geo = new THREE.BufferGeometry();
         const pos = new Float32Array(count * 3);
@@ -160,11 +151,18 @@ function createLocalizedEmbers() {
         const phases = new Float32Array(count);
 
         for (let i = 0; i < count; i++) {
-            // ขยายขอบเขตการลอยให้ครอบคลุมพระองค์ใหญ่ (X: 3.5, Y: 4.0, Z: 2.0)
             pos[i * 3] = (Math.random() - 0.5) * 3.5; 
             pos[i * 3 + 1] = Math.random() * 4.0; 
             pos[i * 3 + 2] = (Math.random() - 0.5) * 2.0; 
-            speeds[i] = 0.001 + Math.random() * 0.005; // ปรับให้ลอยช้าลงนิดนึง ดูศักดิ์สิทธิ์ขึ้น
+            
+            // ==============================================================
+            // [ปรับแต่งได้: 1. ความเร็วในการลอยตัวขึ้นด้านบน (Vertical Speed)]
+            // ==============================================================
+            // ค่าเดิม: 0.001 + Math.random() * 0.005 
+            // ค่าใหม่: 0.005 + Math.random() * 0.015 (เร็วขึ้น 3 เท่า)
+            // 👉 ถ้าอยากให้ดาวพุ่งเร็วขึ้นอีก ให้เพิ่มตัวเลข 0.005 และ 0.015 ให้มากขึ้น
+            speeds[i] = 0.005 + Math.random() * 0.015; 
+            
             phases[i] = Math.random() * Math.PI * 2;
         }
         
@@ -180,10 +178,9 @@ function createLocalizedEmbers() {
         return particles;
     }
 
-    // 3. นำดาวแต่ละเลเยอร์มาใส่รวมกันใน Group
-    group.add(createStarLayer(0.08, 0.3, 25));  // เลเยอร์ 1: ดวงเล็ก สว่างน้อย (พื้นหลัง)
-    group.add(createStarLayer(0.18, 0.6, 15));  // เลเยอร์ 2: ดวงกลาง สว่างปานกลาง
-    group.add(createStarLayer(0.35, 1.0, 8));   // เลเยอร์ 3: ดวงใหญ่ สว่างมากวิบวับ
+    group.add(createStarLayer(0.08, 0.3, 25));  
+    group.add(createStarLayer(0.18, 0.6, 15));  
+    group.add(createStarLayer(0.35, 1.0, 8));   
 
     return group;
 }
@@ -191,16 +188,23 @@ function createLocalizedEmbers() {
 export function updateBuddhaEffects() {
     if (!emberSystem || !emberSystem.visible) return;
     
-    // อัปเดตดาวประกายพฤกษ์ทุกเลเยอร์ที่อยู่ใน Group
     emberSystem.children.forEach(particles => {
         const positions = particles.geometry.attributes.position.array;
         const { speeds, phases, count } = particles.userData;
         
         for (let i = 0; i < count; i++) {
+            // ดันดาวให้ลอยขึ้นตามค่า speed ที่เราเพิ่มไว้
             positions[i*3+1] += speeds[i]; 
-            positions[i*3] += Math.sin(Date.now()*0.001 + phases[i]) * 0.002; 
             
-            // ปรับระดับความสูงสูงสุดก่อนวนกลับลงมาที่ฐาน (ขยายเป็น 4.0 ตามสเกลพระ)
+            // ==============================================================
+            // [ปรับแต่งได้: 2. ความเร็วในการส่ายไปมาระหว่างลอย (Sway Speed)]
+            // ==============================================================
+            // ค่าเดิม: Date.now() * 0.001 (ส่ายช้าๆ) และ * 0.002 (รัศมีการส่ายแคบๆ)
+            // ค่าใหม่: Date.now() * 0.003 (ส่ายเร็วขึ้น 3 เท่า) และ * 0.004 (รัศมีการส่ายกว้างขึ้น 2 เท่า)
+            // 👉 ถ้าอยากให้ดาวส่ายวิบวับเหมือนมีลมพัดแรงๆ ให้เพิ่มเลข 0.003 ให้มากขึ้น
+            // 👉 ถ้าอยากให้วงสวิงกว้างขึ้น ให้เพิ่มเลข 0.004 ให้มากขึ้น
+            positions[i*3] += Math.sin(Date.now() * 0.003 + phases[i]) * 0.004; 
+            
             if (positions[i*3+1] > 4.0) { 
                 positions[i*3+1] = 0; 
                 positions[i*3] = (Math.random() - 0.5) * 3.5;
