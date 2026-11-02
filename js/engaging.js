@@ -8,6 +8,9 @@ let activeBots = [];
 let botReactionInterval = null;
 let toastTimeout = null;
 
+// --- เพิ่มตัวแปร Global ใหม่ (ด้านบนสุดต่อจากตัวแปรระบบ) ---
+window.currentZoneName = "ลานธรรม";
+
 // ==========================================
 // [ปรับแต่งได้: การตั้งค่าระบบจำกัดเวลาและข้อความ]
 // ==========================================
@@ -244,11 +247,23 @@ function showFloatingReaction(text, senderName, isCustom = false) {
 // ==========================================
 // ส่งข้อมูลเข้าฐานข้อมูล Firebase
 // ==========================================
+// --- แก้ไขฟังก์ชัน sendReaction ---
+// ค้นหาฟังก์ชัน: function sendReaction(reactionText, isCustom = false)
+// แล้วแก้ไขให้เป็น:
+
 function sendReaction(reactionText, isCustom = false) {
-    showFloatingReaction(reactionText, currentUser, isCustom);
+    // แนบชื่อห้องต่อท้ายชื่อผู้ใช้
+    const taggedName = `${currentUser} (${window.currentZoneName})`; 
+
+    // แสดงข้อความแชทบนจอ (ใช้ชื่อที่ต่อท้ายด้วยห้องแล้ว)
+    showFloatingReaction(reactionText, taggedName, isCustom);
+    
     if (firebaseDb && currentRoomId) {
         push(ref(firebaseDb, `rooms/${currentRoomId}/reactions`), { 
-            text: reactionText, sender: currentUser, isCustom: isCustom, timestamp: Date.now() 
+            text: reactionText, 
+            sender: taggedName, // ส่งชื่อที่ต่อท้ายด้วยห้องขึ้น Firebase
+            isCustom: isCustom, 
+            timestamp: Date.now() 
         });
     }
 }
@@ -281,7 +296,9 @@ export function updateEngagingContext(roomId, botNamesList) {
         const now = Date.now();
         onChildAdded(ref(firebaseDb, `rooms/${currentRoomId}/reactions`), (snapshot) => {
             const data = snapshot.val();
-            if (data.timestamp >= now && data.sender !== currentUser) {
+            
+            // 🔍 [แก้ไขจุดนี้]: เปลี่ยนมาเช็คว่า sender ไม่ได้ขึ้นต้นด้วยชื่อของเรา
+            if (data.timestamp >= now && !data.sender.startsWith(currentUser)) {
                 showFloatingReaction(data.text, data.sender, data.isCustom);
             }
         });

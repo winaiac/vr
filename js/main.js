@@ -5,6 +5,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebas
 import { getDatabase } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
 
 import { setupMeditationScene } from './meditation-scene.js';
+// แก้ไขบรรทัด import { setupMeditationScene } ให้มีโค้ดนี้ต่อท้าย
+import { createMeditatorAvatar, switchAvatarPosture, switchAvatarToOrb } from './avatar.js';
+import { ref, set, onChildAdded, onChildChanged, onChildRemoved } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
+
 import { setupRealmScene } from './realm-scene.js';
 import { initEngagingSystem } from './engaging.js';
 
@@ -16,6 +20,13 @@ let currentUserName = userName;
 
 const userProfileBtn = document.getElementById('user-profile');
 userProfileBtn.innerText = `ผู้ใช้งาน: ${currentUserName}`;
+
+// 2. --- เพิ่มตัวแปรสำหรับจัดการผู้เล่นอื่น (ใต้การกำหนด userId) ---
+const otherPlayers = {}; 
+// ค่าเริ่มต้นของสถานะอวตารเรา
+let myAvatarState = 'SIT'; 
+let myIsOrbMode = false;
+let myOrbColor = 0x00e5ff;
 
 // ==========================================
 // ควบคุมปุ่มคลิกเปลี่ยนชื่อผู้ใช้
@@ -143,8 +154,101 @@ meditationModule.scene.visible = true;
 realmModule.scene.visible = false;
 if (meditationModule.onEnterScene) meditationModule.onEnterScene(); 
 
+// 3.1 ฟังก์ชันส่งตำแหน่งของเราขึ้น Firebase
+function updateMyPositionToFirebase() {
+    if (!activeModule || !activeModule.camera) return;
+
+    let syncY = activeModule.camera.position.y;
+    let syncX = activeModule.camera.position.x;
+    let syncZ = activeModule.camera.position.z;
+
+    // กฎแรงโน้มถ่วง: ถ้าอยู่ในท่านั่ง ให้ล็อคความสูง Y ติดพื้นเสมอ
+    if (myAvatarState === 'SIT' && !myIsOrbMode) {
+        syncY = 0; 
+    }
+
+    // กฎกระจายตัวหน้าแท่นขอขมา (สมมติพิกัดแท่นขอขมาคือ Z < -5)
+    if (myAvatarState === 'SIT' && syncZ < -5 && !myIsOrbMode) {
+        // ใช้ userId มาช่วยคำนวณตำแหน่งคงที่ เพื่อให้ยืนกระจายจุดเดิมเสมอ
+        const hash = parseInt(userId.replace(/\D/g, '').substring(0,4)) || Math.random() * 1000;
+        syncX += (hash % 10) * 0.3 - 1.5; 
+        syncZ += ((hash * 2) % 10) * 0.2; 
+    }
+
+    const myData = {
+        name: currentUserName,
+        x: syncX,
+        y: syncY,
+        z: syncZ,
+        state: myAvatarState,
+        isOrb: myIsOrbMode,
+        color: myOrbColor,
+        lastActive: Date.now()
+    };
+
+    set(ref(db, `players/${userId}`), myData);
+}
+
+// 3.2 ฟังก์ชันรับข้อมูลผู้เล่นอื่น
+function initPlayerSync() {
+    const playersRef = ref(db, 'players');
+
+    // เมื่อมีผู้เล่นเข้ามาใหม่ หรืออัปเดตข้อมูล
+    const updatePlayer = (snapshot) => {
+        const uid = snapshot.key;
+        if (uid === userId) return; // ไม่ต้องวาดตัวเอง
+
+        const data = snapshot.val();
+        
+        // กรองคนออฟไลน์ (ไม่อัปเดตเกิน 3 นาที)
+        if (Date.now() - data.lastActive > 180000) {
+            removePlayer(uid);
+            return;
+        }
+
+        if (!otherPlayers[uid]) {
+            const newAvatar = createMeditatorAvatar(data.name);
+            activeModule.scene.add(newAvatar); // เพิ่มลงในซีนปัจจุบัน
+            otherPlayers[uid] = newAvatar;
+        }
+
+        const avatar = otherPlayers[uid];
+        avatar.position.set(data.x, data.y, data.z);
+        avatar.lookAt(0, data.y, 0); // หันเข้าหากลางห้อง
+
+        if (data.isOrb) {
+            switchAvatarToOrb(avatar, data.color, true);
+        } else {
+            switchAvatarToOrb(avatar, null, false); 
+            switchAvatarPosture(avatar, data.state === 'STAND');
+        }
+    };
+
+    onChildAdded(playersRef, updatePlayer);
+    onChildChanged(playersRef, updatePlayer);
+
+    // เมื่อผู้เล่นออก
+    onChildRemoved(playersRef, (snapshot) => {
+        removePlayer(snapshot.key);
+    });
+}
+
+function removePlayer(uid) {
+    if (otherPlayers[uid]) {
+        activeModule.scene.remove(otherPlayers[uid]);
+        delete otherPlayers[uid];
+    }
+}
+
+// เรียกใช้ระบบซิงค์ผู้เล่น
+initPlayerSync();
+
+
+
 // 4. Transition Logic (ระบบสลับฉากและการแสดงผล UI)
 const overlay = document.getElementById('fade-overlay');
+
+
 
 function switchScene(targetMode) {
     overlay.style.opacity = 1;
@@ -166,6 +270,12 @@ function switchScene(targetMode) {
             document.getElementById('warp-btn').style.display = 'none';
             document.getElementById('back-to-meditation-btn').style.display = 'block';
             
+
+            // --- เพิ่ม 3 บรรทัดนี้ ---
+            window.currentZoneName = "โถงไตรภพ"; // อัปเดตโซนให้ระบบแชท
+            myIsOrbMode = true; // แปลงร่างเป็นดวงจิต
+            myAvatarState = 'STAND';
+
             // ==============================================================
             // [คำแนะนำ: ห้องนิทรรศการภพภูมิ (REALM)]
             // 2. เมื่ออยู่ห้องภพภูมิ ให้สั่งซ่อน UI ด้วย .style.display = 'none'
@@ -185,6 +295,11 @@ function switchScene(targetMode) {
             document.getElementById('warp-btn').style.display = 'block';
             document.getElementById('back-to-meditation-btn').style.display = 'none';
             
+            // --- เพิ่ม 3 บรรทัดนี้ ---
+            window.currentZoneName = "ลานธรรม"; // อัปเดตโซน
+            myIsOrbMode = false; // กลับร่างคน
+            myAvatarState = 'SIT'; // นั่งที่เบาะ
+
             // ==============================================================
             // [คำแนะนำ: ห้องลานปฏิบัติธรรม (MEDITATION)]
             // 3. เมื่อกลับมาลานปฏิบัติธรรม ให้เรียก UI กลับมาด้วย 'flex' หรือ 'block'
@@ -196,6 +311,12 @@ function switchScene(targetMode) {
             if (realmModule.onExitScene) realmModule.onExitScene();
             if (meditationModule.onEnterScene) meditationModule.onEnterScene();
         }
+
+        // ย้ายอวตารคนอื่นไปโชว์ในซีนใหม่
+        Object.values(otherPlayers).forEach(avatar => {
+             activeModule.scene.add(avatar);
+        });
+
         overlay.style.opacity = 0;
     }, 800);
 }
@@ -239,6 +360,11 @@ document.addEventListener('fullscreenchange', () => {
 // 6. Loop & Resize
 renderer.setAnimationLoop(() => {
     if (activeModule && activeModule.update) activeModule.update();
+
+    // อัปเดตตำแหน่งตัวเองขึ้น Firebase (ทำทุกเฟรมอาจจะถี่ไป แนะนำให้ตั้งเวลา หรือตรวจจับการขยับแทน)
+    // แต่เพื่อความง่ายในเบื้องต้น เรียกใช้ตรงนี้ก่อนได้ครับ
+    updateMyPositionToFirebase();
+
     renderer.render(activeModule.scene, activeModule.camera);
     cssRenderer.render(activeModule.scene, activeModule.camera);
 });
