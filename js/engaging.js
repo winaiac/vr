@@ -290,14 +290,20 @@ export function initEngagingSystem(db, userName) {
     firebaseDb = db; currentUser = userName; createReactionUI();
 }
 
+let activeReactionRoom = null; // เพิ่มตัวแปรจำชื่อห้อง ป้องกันการเปิดรับแชทซ้ำซ้อน
+
 export function updateEngagingContext(roomId, botNamesList) {
-    currentRoomId = roomId; activeBots = botNamesList; 
-    if (firebaseDb && currentRoomId) {
+    currentRoomId = roomId; 
+    activeBots = botNamesList; 
+    
+    // เช็คว่าถ้ายังไม่เคยเปิดรับแชทของห้องนี้ ค่อยรันคำสั่ง (ป้องกันบั๊กข้อความเด้ง 4 บอลลูน)
+    if (firebaseDb && currentRoomId && activeReactionRoom !== currentRoomId) {
+        activeReactionRoom = currentRoomId; // บันทึกไว้ว่าเปิดหูดักฟังห้องนี้แล้ว
         const now = Date.now();
         onChildAdded(ref(firebaseDb, `rooms/${currentRoomId}/reactions`), (snapshot) => {
             const data = snapshot.val();
             
-            // 🔍 [แก้ไขจุดนี้]: เปลี่ยนมาเช็คว่า sender ไม่ได้ขึ้นต้นด้วยชื่อของเรา
+            // กรองแชทเก่า และแชทที่มาจากตัวเอง
             if (data.timestamp >= now && !data.sender.startsWith(currentUser)) {
                 showFloatingReaction(data.text, data.sender, data.isCustom);
             }
@@ -309,4 +315,8 @@ export function updateEngagingContext(roomId, botNamesList) {
 export function toggleReactionUI(isVisible) {
     const container = document.getElementById('reaction-ui-container');
     if (container) container.style.display = isVisible ? 'flex' : 'none';
+}
+// อัปเดตชื่อผู้ใช้ระหว่างที่อยู่ในห้อง (ไม่ต้องรีเฟรชหน้าเว็บ)
+export function updateChatUserName(newName) {
+    currentUser = newName;
 }

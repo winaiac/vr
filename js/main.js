@@ -5,15 +5,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebas
 import { getDatabase } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
 
 import { setupMeditationScene } from './meditation-scene.js';
-// แก้ไขบรรทัด import { setupMeditationScene } ให้มีโค้ดนี้ต่อท้าย
 import { createMeditatorAvatar, switchAvatarPosture, switchAvatarToOrb } from './avatar.js';
-import { ref, set, onChildAdded, onChildChanged, onChildRemoved } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
+
+import { ref, set, get, onChildAdded, onChildChanged, onChildRemoved } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
 
 import { setupRealmScene } from './realm-scene.js';
-import { initEngagingSystem } from './engaging.js';
+import { initEngagingSystem, updateChatUserName } from './engaging.js';
 
 // 1. User & Firebase Setup
-import { initIDPS, changeUserName } from './idps.js'; 
+import { initIDPS, changeUserName } from './idps.js';
 
 const { userId, userName, channelTag } = initIDPS("กัลยาณมิตร");
 let currentUserName = userName;
@@ -21,15 +21,40 @@ let currentUserName = userName;
 const userProfileBtn = document.getElementById('user-profile');
 userProfileBtn.innerText = `ผู้ใช้งาน: ${currentUserName}`;
 
-// 2. --- เพิ่มตัวแปรสำหรับจัดการผู้เล่นอื่น (ใต้การกำหนด userId) ---
+// 2. --- เพิ่มตัวแปรสำหรับจัดการผู้เล่นอื่น ---
 const otherPlayers = {}; 
-// ค่าเริ่มต้นของสถานะอวตารเรา
 let myAvatarState = 'SIT'; 
 let myIsOrbMode = false;
 let myOrbColor = 0x00e5ff;
 
 // ==========================================
-// ควบคุมปุ่มคลิกเปลี่ยนชื่อผู้ใช้
+// จัดการข้อมูลอวตารส่วนตัว (สีผิว, สีผม, สีเสื้อ, ทรงผม)
+// ==========================================
+const skinPalettes = [
+    { color: 0xffdfc4, emissive: 0x8a6b51 },
+    { color: 0xf0d5b6, emissive: 0x8a6b51 },
+    { color: 0xd2a171, emissive: 0x6b4c31 },
+    { color: 0x8d5524, emissive: 0x3d230e },
+    { color: 0x4a2a18, emissive: 0x1a0f0a }
+];
+const hairColors = [0x111111, 0x2b1d14, 0x4a3123, 0xccaa55, 0x8c3310, 0xdddddd];
+const shirtColors = [0xffffff, 0xffffff, 0xf5f5dc, 0xcce0ff, 0xd4f0d4, 0xffe6e6, 0xdddddd];
+const pantsColors = [0xffffff, 0xffffff, 0x333333, 0x555555, 0x8b5a2b, 0x2c3e50];
+
+let myAvatarColors = JSON.parse(localStorage.getItem('myAvatarColors'));
+if (!myAvatarColors) {
+    myAvatarColors = {
+        skin: skinPalettes[Math.floor(Math.random() * skinPalettes.length)],
+        hair: hairColors[Math.floor(Math.random() * hairColors.length)],
+        shirt: shirtColors[Math.floor(Math.random() * shirtColors.length)],
+        pants: pantsColors[Math.floor(Math.random() * pantsColors.length)],
+        isLongHair: Math.random() > 0.5
+    };
+    localStorage.setItem('myAvatarColors', JSON.stringify(myAvatarColors));
+}
+
+// ==========================================
+// ควบคุมปุ่มคลิกเปลี่ยนชื่อผู้ใช้ & พรีวิวอวตาร 3D
 // ==========================================
 const nameModal = document.getElementById('name-change-modal');
 const newNameInput = document.getElementById('new-name-input');
@@ -37,40 +62,151 @@ const confirmNameBtn = document.getElementById('confirm-name-btn');
 const cancelNameBtn = document.getElementById('cancel-name-btn');
 const nameModalMsg = document.getElementById('name-modal-msg'); 
 
-// 1. ทำให้คลิกที่ชื่อตรงมุมซ้ายบนแล้วกล่องแก้ไขเด้งขึ้นมา
-// 1. ทำให้คลิกที่ชื่อตรงมุมซ้ายบนแล้วกล่องแก้ไขเด้งขึ้นมา (เพิ่มเงื่อนไขเช็คสิทธิ์รายวัน)
-userProfileBtn.addEventListener('click', () => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const lastChangeDate = localStorage.getItem('app_last_name_change_date');
+const randomAvatarBtn = document.createElement('button');
+randomAvatarBtn.innerHTML = '🎲 สุ่มรูปลักษณ์ใหม่';
+randomAvatarBtn.style.cssText = 'background: #e67e22; color: white; border: none; border-radius: 8px; padding: 10px; margin-top: 10px; margin-bottom: 10px; cursor: pointer; font-family: "Sarabun"; font-weight: bold; width: 100%; display: block;';
+confirmNameBtn.parentNode.insertBefore(randomAvatarBtn, confirmNameBtn);
 
-    // ตรวจสอบว่าวันนี้ใช้สิทธิ์เปลี่ยนชื่อไปหรือยัง
-    if (lastChangeDate === todayStr) {
-        // หากใช้สิทธิ์แล้ว ให้เปลี่ยนข้อความเตือนสีแดงที่ปุ่มชั่วคราว 3 วินาที
+let myPreviewAvatar = null; 
+let previewLight = null; 
+let previewDarkBG = null; 
+let isDraggingAvatar = false;
+let previousMouseX = 0;
+let manualRotationOffset = 0; 
+let autoRotationAngle = 0;
+
+function showPreviewAvatar() {
+    hidePreviewAvatar(); 
+    
+    // [ซ่อนจอ YouTube] ป้องกันจอ CSS3D บังทะลุหัวอวตาร
+    const cssContainer = document.getElementById('css-container');
+    if (cssContainer) cssContainer.style.display = 'none';
+    
+    myPreviewAvatar = createMeditatorAvatar(newNameInput.value || currentUserName, myAvatarColors);
+    switchAvatarPosture(myPreviewAvatar, true); 
+    
+    myPreviewAvatar.position.set(0, -0.7, -1.8); 
+    
+    autoRotationAngle = 0;
+    manualRotationOffset = 0;
+    myPreviewAvatar.rotation.y = 0; 
+    
+    previewLight = new THREE.Group(); 
+    const pLight = new THREE.PointLight(0xffffff, 5.0, 5); 
+    pLight.position.set(0, 0.2, -0.8); 
+    const aLight = new THREE.AmbientLight(0xffffff, 1.5); 
+    previewLight.add(pLight);
+    previewLight.add(aLight);
+    
+    const bgGeo = new THREE.PlaneGeometry(20, 20);
+    const bgMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.85, depthWrite: false });
+    previewDarkBG = new THREE.Mesh(bgGeo, bgMat);
+    previewDarkBG.position.set(0, 0, -2.5); 
+    
+    activeModule.camera.add(previewDarkBG);
+    activeModule.camera.add(myPreviewAvatar);
+    activeModule.camera.add(previewLight);
+}
+
+function hidePreviewAvatar() {
+    if (myPreviewAvatar) activeModule.camera.remove(myPreviewAvatar);
+    if (previewLight) activeModule.camera.remove(previewLight);
+    if (previewDarkBG) activeModule.camera.remove(previewDarkBG); 
+    myPreviewAvatar = null;
+    previewLight = null;
+    previewDarkBG = null;
+    
+    // [แสดงจอ YouTube กลับมา] เมื่อปิดหน้าต่างเปลี่ยนชื่อ
+    const cssContainer = document.getElementById('css-container');
+    if (cssContainer) cssContainer.style.display = 'block';
+}
+
+userProfileBtn.addEventListener('click', () => {
+    // [อัปเดตระบบเวลา] เปลี่ยนเป็นหน่วงเวลา 10 นาที (600,000 มิลลิวินาที)
+    const now = Date.now();
+    const lastChangeTime = localStorage.getItem('app_last_name_change_time') || 0;
+    const cooldown = 10 * 60 * 1000; 
+
+    if (now - lastChangeTime < cooldown) {
+        const remainMin = Math.ceil((cooldown - (now - lastChangeTime)) / 60000);
         const originalText = userProfileBtn.innerText;
-        userProfileBtn.innerText = "⏳ วันนี้เปลี่ยนชื่อไปแล้ว รอพรุ่งนี้นะครับ";
-        userProfileBtn.style.color = "#ff5252"; // สีแดงแจ้งเตือน
-        
+        userProfileBtn.innerText = `⏳ เปลี่ยนชื่อได้อีกครั้งใน ${remainMin} นาที`;
+        userProfileBtn.style.color = "#ff5252"; 
         setTimeout(() => {
             userProfileBtn.innerText = originalText;
-            userProfileBtn.style.color = "#ff9800"; // กลับเป็นสีส้มปกติ
+            userProfileBtn.style.color = "#ff9800"; 
         }, 3000);
-        
-        return; // หยุดการทำงานคำสั่งด้านล่าง (ไม่เปิดกล่องแก้ไข)
     }
 
-    // หากยังไม่ใช้สิทธิ์ ให้เปิดกล่องตามปกติ
     newNameInput.value = currentUserName.replace(channelTag, ''); 
     nameModalMsg.style.display = 'none'; 
     nameModal.style.display = 'flex';
+    
+    nameModal.style.background = 'transparent';  
+    nameModal.style.backdropFilter = 'none';
+    nameModal.style.webkitBackdropFilter = 'none';
+    nameModal.style.pointerEvents = 'auto'; 
+    
+    const innerBox = nameModal.firstElementChild;
+    innerBox.style.position = 'absolute';
+    innerBox.style.top = '70px'; 
+    innerBox.style.left = '20px'; 
+    innerBox.style.margin = '0';
+    innerBox.style.pointerEvents = 'auto'; 
+
+    // เปลี่ยนข้อความอธิบายในหน้าต่างให้เป็น 10 นาที
+    const descText = innerBox.querySelector('p');
+    if (descText) descText.innerText = "คุณสามารถเปลี่ยนชื่อได้ทุก 10 นาที";
+
+    confirmNameBtn.innerText = 'บันทึก';
+
     newNameInput.focus();
+    showPreviewAvatar();
 });
 
-// 2. เมื่อกดยกเลิกในกล่อง ให้ปิดหน้าต่าง
+// จับการลากนิ้ว/เมาส์ เพื่อหมุนอวตาร
+nameModal.addEventListener('pointerdown', (e) => {
+    if (e.target === nameModal) {
+        isDraggingAvatar = true;
+        previousMouseX = e.clientX;
+    }
+});
+
+window.addEventListener('pointermove', (e) => {
+    if (isDraggingAvatar && myPreviewAvatar) {
+        const deltaX = e.clientX - previousMouseX;
+        manualRotationOffset += deltaX * 0.015; 
+        previousMouseX = e.clientX;
+    }
+});
+
+window.addEventListener('pointerup', () => {
+    isDraggingAvatar = false;
+});
+
+randomAvatarBtn.addEventListener('click', () => {
+    myAvatarColors = {
+        skin: skinPalettes[Math.floor(Math.random() * skinPalettes.length)],
+        hair: hairColors[Math.floor(Math.random() * hairColors.length)],
+        shirt: shirtColors[Math.floor(Math.random() * shirtColors.length)],
+        pants: pantsColors[Math.floor(Math.random() * pantsColors.length)],
+        isLongHair: Math.random() > 0.5
+    };
+    localStorage.setItem('myAvatarColors', JSON.stringify(myAvatarColors));
+    
+    showPreviewAvatar(); 
+    updateMyPositionToFirebase(); 
+});
+
+newNameInput.addEventListener('input', () => {
+    if(myPreviewAvatar) showPreviewAvatar();
+});
+
 cancelNameBtn.addEventListener('click', () => {
     nameModal.style.display = 'none';
+    hidePreviewAvatar(); 
 });
 
-// 3. เมื่อกดบันทึกชื่อในกล่อง
 confirmNameBtn.addEventListener('click', () => {
     const newName = newNameInput.value.trim();
     if (!newName) {
@@ -89,11 +225,16 @@ confirmNameBtn.addEventListener('click', () => {
         nameModalMsg.innerText = result.message; 
         nameModalMsg.style.color = "#00ffcc";
         nameModalMsg.style.display = "block";
+        // [เพิ่มใหม่] บันทึกเวลาล่าสุดที่เปลี่ยนชื่อสำเร็จลงเครื่อง
+        localStorage.setItem('app_last_name_change_time', Date.now());
+        updateMyPositionToFirebase(); 
+        // [เพิ่มบรรทัดนี้] สั่งให้ระบบแชทรับรู้ชื่อใหม่ทันที
+        updateChatUserName(currentUserName);
         
         setTimeout(() => {
             nameModal.style.display = 'none';
+            hidePreviewAvatar(); 
         }, 1500);
-        
     } else {
         nameModalMsg.innerText = result.message; 
         nameModalMsg.style.color = "#ff5252";
@@ -114,13 +255,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// 2. Renderer Setup
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
 
-// --- ระบบจัดการปุ่ม VR ---
 const vrButtonEl = VRButton.createButton(renderer);
 vrButtonEl.id = 'VRButton'; 
 document.body.appendChild(vrButtonEl);
@@ -142,10 +281,8 @@ const cssRenderer = new CSS3DRenderer();
 cssRenderer.setSize(window.innerWidth, window.innerHeight);
 document.getElementById('css-container').appendChild(cssRenderer.domElement);
 
-// เปิดใช้งาน UI และเชื่อมต่อ Firebase ให้ระบบอิโมจิ
 initEngagingSystem(db, currentUserName);
 
-// 3. Create Scenes
 const meditationModule = setupMeditationScene(renderer, cssRenderer, db, currentUserName);
 const realmModule = setupRealmScene(renderer, cssRenderer, currentUserName);
 
@@ -154,25 +291,26 @@ meditationModule.scene.visible = true;
 realmModule.scene.visible = false;
 if (meditationModule.onEnterScene) meditationModule.onEnterScene(); 
 
-// 3.1 ฟังก์ชันส่งตำแหน่งของเราขึ้น Firebase
 function updateMyPositionToFirebase() {
     if (!activeModule || !activeModule.camera) return;
 
     let syncY = activeModule.camera.position.y;
     let syncX = activeModule.camera.position.x;
     let syncZ = activeModule.camera.position.z;
+    let syncState = myAvatarState;
 
-    // กฎแรงโน้มถ่วง: ถ้าอยู่ในท่านั่ง ให้ล็อคความสูง Y ติดพื้นเสมอ
-    if (myAvatarState === 'SIT' && !myIsOrbMode) {
-        syncY = 0; 
-    }
-
-    // กฎกระจายตัวหน้าแท่นขอขมา (สมมติพิกัดแท่นขอขมาคือ Z < -5)
-    if (myAvatarState === 'SIT' && syncZ < -5 && !myIsOrbMode) {
-        // ใช้ userId มาช่วยคำนวณตำแหน่งคงที่ เพื่อให้ยืนกระจายจุดเดิมเสมอ
-        const hash = parseInt(userId.replace(/\D/g, '').substring(0,4)) || Math.random() * 1000;
-        syncX += (hash % 10) * 0.3 - 1.5; 
-        syncZ += ((hash * 2) % 10) * 0.2; 
+    if (window.lockedAvatar && !myIsOrbMode) {
+        syncX = window.lockedAvatar.x;
+        syncY = window.lockedAvatar.y; 
+        syncZ = window.lockedAvatar.z;
+        syncState = window.lockedAvatar.state; 
+    } else {
+        if (!myIsOrbMode) syncY = 0; 
+        if (syncZ < -5 && !myIsOrbMode) {
+            const hash = parseInt(userId.replace(/\D/g, '').substring(0,4)) || Math.random() * 1000;
+            syncX += (hash % 10) * 0.3 - 1.5; 
+            syncZ += ((hash * 2) % 10) * 0.2; 
+        }
     }
 
     const myData = {
@@ -180,41 +318,52 @@ function updateMyPositionToFirebase() {
         x: syncX,
         y: syncY,
         z: syncZ,
-        state: myAvatarState,
+        state: syncState,
         isOrb: myIsOrbMode,
         color: myOrbColor,
+        avatarColors: myAvatarColors, 
         lastActive: Date.now()
     };
 
     set(ref(db, `players/${userId}`), myData);
 }
 
-// 3.2 ฟังก์ชันรับข้อมูลผู้เล่นอื่น
 function initPlayerSync() {
     const playersRef = ref(db, 'players');
 
-    // เมื่อมีผู้เล่นเข้ามาใหม่ หรืออัปเดตข้อมูล
     const updatePlayer = (snapshot) => {
         const uid = snapshot.key;
-        if (uid === userId) return; // ไม่ต้องวาดตัวเอง
+        if (uid === userId) return; 
 
         const data = snapshot.val();
         
-        // กรองคนออฟไลน์ (ไม่อัปเดตเกิน 3 นาที)
         if (Date.now() - data.lastActive > 180000) {
             removePlayer(uid);
             return;
         }
 
+        // ===========================================
+        // [เพิ่มใหม่] เช็คว่าถ้าชื่อเปลี่ยน หรือ สีเสื้อ/สีผิวเปลี่ยน ให้ลบอวตารเพื่อนตัวเก่าทิ้งเพื่อวาดใหม่
+        if (otherPlayers[uid]) {
+            const oldName = otherPlayers[uid].userData.userName;
+            const oldColors = JSON.stringify(otherPlayers[uid].userData.customColors);
+            const newColors = JSON.stringify(data.avatarColors);
+            
+            if (oldName !== data.name || oldColors !== newColors) {
+                removePlayer(uid);
+            }
+        }
+        // ===========================================
+
         if (!otherPlayers[uid]) {
-            const newAvatar = createMeditatorAvatar(data.name);
-            activeModule.scene.add(newAvatar); // เพิ่มลงในซีนปัจจุบัน
+            const newAvatar = createMeditatorAvatar(data.name, data.avatarColors);
+            activeModule.scene.add(newAvatar); 
             otherPlayers[uid] = newAvatar;
         }
 
         const avatar = otherPlayers[uid];
         avatar.position.set(data.x, data.y, data.z);
-        avatar.lookAt(0, data.y, 0); // หันเข้าหากลางห้อง
+        avatar.lookAt(0, data.y, -100); 
 
         if (data.isOrb) {
             switchAvatarToOrb(avatar, data.color, true);
@@ -227,7 +376,6 @@ function initPlayerSync() {
     onChildAdded(playersRef, updatePlayer);
     onChildChanged(playersRef, updatePlayer);
 
-    // เมื่อผู้เล่นออก
     onChildRemoved(playersRef, (snapshot) => {
         removePlayer(snapshot.key);
     });
@@ -240,25 +388,14 @@ function removePlayer(uid) {
     }
 }
 
-// เรียกใช้ระบบซิงค์ผู้เล่น
 initPlayerSync();
 
-
-
-// 4. Transition Logic (ระบบสลับฉากและการแสดงผล UI)
 const overlay = document.getElementById('fade-overlay');
-
-
 
 function switchScene(targetMode) {
     overlay.style.opacity = 1;
     setTimeout(() => {
-        // ==============================================================
-        // [คำแนะนำ: การควบคุม UI เวลาข้ามห้อง]
-        // 1. ถ้าต้องการให้ UI ตัวไหน เปิด/ปิด ตามห้อง ให้ดึง ID ของ HTML มาเก็บเป็นตัวแปรไว้ตรงนี้ก่อน
-        // ==============================================================
-        const topCapsule = document.getElementById('top-capsule-menu'); // ปุ่มขอขมา/บอร์ด
-        // ตัวอย่าง: const chatUI = document.getElementById('chat-master-container'); // ถ้าอนาคตอยากซ่อนระบบแชท
+        const topCapsule = document.getElementById('top-capsule-menu'); 
 
         if (targetMode === 'REALM') {
             activeModule = realmModule;
@@ -270,18 +407,11 @@ function switchScene(targetMode) {
             document.getElementById('warp-btn').style.display = 'none';
             document.getElementById('back-to-meditation-btn').style.display = 'block';
             
-
-            // --- เพิ่ม 3 บรรทัดนี้ ---
-            window.currentZoneName = "โถงไตรภพ"; // อัปเดตโซนให้ระบบแชท
-            myIsOrbMode = true; // แปลงร่างเป็นดวงจิต
+            window.currentZoneName = "โถงไตรภพ"; 
+            myIsOrbMode = true; 
             myAvatarState = 'STAND';
 
-            // ==============================================================
-            // [คำแนะนำ: ห้องนิทรรศการภพภูมิ (REALM)]
-            // 2. เมื่ออยู่ห้องภพภูมิ ให้สั่งซ่อน UI ด้วย .style.display = 'none'
-            // ==============================================================
             if (topCapsule) topCapsule.style.display = 'none';
-            // ตัวอย่าง: if (chatUI) chatUI.style.display = 'none';
             
             if (meditationModule.onExitScene) meditationModule.onExitScene();
             if (realmModule.onEnterScene) realmModule.onEnterScene();
@@ -295,24 +425,16 @@ function switchScene(targetMode) {
             document.getElementById('warp-btn').style.display = 'block';
             document.getElementById('back-to-meditation-btn').style.display = 'none';
             
-            // --- เพิ่ม 3 บรรทัดนี้ ---
-            window.currentZoneName = "ลานธรรม"; // อัปเดตโซน
-            myIsOrbMode = false; // กลับร่างคน
-            myAvatarState = 'SIT'; // นั่งที่เบาะ
+            window.currentZoneName = "ลานธรรม"; 
+            myIsOrbMode = false; 
+            myAvatarState = 'SIT'; 
 
-            // ==============================================================
-            // [คำแนะนำ: ห้องลานปฏิบัติธรรม (MEDITATION)]
-            // 3. เมื่อกลับมาลานปฏิบัติธรรม ให้เรียก UI กลับมาด้วย 'flex' หรือ 'block'
-            // (ใช้ flex ถ้า UI นั้นสร้างด้วย Flexbox, หรือใช้ block ถ้าเป็น div ทั่วไป)
-            // ==============================================================
             if (topCapsule) topCapsule.style.display = 'flex';
-            // ตัวอย่าง: if (chatUI) chatUI.style.display = 'flex';
             
             if (realmModule.onExitScene) realmModule.onExitScene();
             if (meditationModule.onEnterScene) meditationModule.onEnterScene();
         }
 
-        // ย้ายอวตารคนอื่นไปโชว์ในซีนใหม่
         Object.values(otherPlayers).forEach(avatar => {
              activeModule.scene.add(avatar);
         });
@@ -325,7 +447,6 @@ document.getElementById('warp-btn').addEventListener('click', () => switchScene(
 document.getElementById('back-to-meditation-btn').addEventListener('click', () => switchScene('MEDITATION'));
 window.onload = () => { setTimeout(() => { overlay.style.opacity = 0; }, 200); };
 
-// 5. Fullscreen Logic
 const fsButton = document.getElementById('fullscreen-btn');
 if (sessionStorage.getItem('keepFullscreen') === 'true') {
     fsButton.innerText = "ย่อหน้าจอ";
@@ -357,13 +478,18 @@ document.addEventListener('fullscreenchange', () => {
     }
 });
 
-// 6. Loop & Resize
 renderer.setAnimationLoop(() => {
     if (activeModule && activeModule.update) activeModule.update();
 
-    // อัปเดตตำแหน่งตัวเองขึ้น Firebase (ทำทุกเฟรมอาจจะถี่ไป แนะนำให้ตั้งเวลา หรือตรวจจับการขยับแทน)
-    // แต่เพื่อความง่ายในเบื้องต้น เรียกใช้ตรงนี้ก่อนได้ครับ
     updateMyPositionToFirebase();
+
+    // สั่งหมุนอวตารพรีวิว
+    if (myPreviewAvatar) {
+        if (!isDraggingAvatar) {
+            autoRotationAngle -= 0.005; 
+        }
+        myPreviewAvatar.rotation.y = autoRotationAngle + manualRotationOffset;
+    }
 
     renderer.render(activeModule.scene, activeModule.camera);
     cssRenderer.render(activeModule.scene, activeModule.camera);

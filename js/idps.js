@@ -34,32 +34,34 @@ export function initIDPS(defaultBaseName = "กัลยาณมิตร") {
     return { userId, userName, channelTag };
 }
 
-// 3. ฟังก์ชันเปลี่ยนชื่อ (จำกัด 1 ครั้งต่อวัน)
+// 3. ฟังก์ชันเปลี่ยนชื่อและรูปลักษณ์ (จำกัดทุก 10 นาที)
 export function changeUserName(newName, channelTag) {
-    const todayStr = new Date().toISOString().split('T')[0]; // ได้ฟอร์แมต YYYY-MM-DD
-    const lastChangeDate = localStorage.getItem('app_last_name_change_date');
+    const now = Date.now();
+    const lastChangeTime = localStorage.getItem('app_last_name_change_time') || 0;
+    const cooldown = 10 * 60 * 1000; // 10 นาที
 
-    // เช็คว่าวันนี้เคยเปลี่ยนไปแล้วหรือยัง
-    if (lastChangeDate === todayStr) {
+    // เช็คว่าเปลี่ยนครั้งล่าสุดเกิน 10 นาทีหรือยัง
+    if (now - lastChangeTime < cooldown) {
+        const remainMin = Math.ceil((cooldown - (now - lastChangeTime)) / 60000);
         return { 
             success: false, 
-            message: "⏳ คุณได้เปลี่ยนชื่อในวันนี้ไปแล้ว กรุณาเปลี่ยนใหม่อีกครั้งในวันพรุ่งนี้ครับ" 
+            message: `⏳ กรุณารออีก ${remainMin} นาที จึงจะเปลี่ยนชื่อหรือสุ่มร่างใหม่ได้อีกครั้งครับ` 
         };
     }
 
-    // ป้องกันคนตั้งชื่อยาวเกินไป และบังคับห้อย Tag เสมอเพื่อกันสับสน
+    // ป้องกันคนตั้งชื่อยาวเกินไป และบังคับห้อย Tag เสมอ
     let safeName = newName.substring(0, 15).trim(); 
     if (!safeName.endsWith(channelTag)) {
         safeName = `${safeName}${channelTag}`;
     }
     
-    // บันทึกชื่อใหม่และวันที่ลงเครื่อง
+    // บันทึกชื่อใหม่และเวลาล่าสุดลงเครื่อง
     localStorage.setItem('app_user_name', safeName);
-    localStorage.setItem('app_last_name_change_date', todayStr);
+    localStorage.setItem('app_last_name_change_time', now);
 
     return { 
         success: true, 
-        message: "✨ เปลี่ยนชื่อสำเร็จเรียบร้อยครับ!",
+        message: "✨ อัปเดตข้อมูลสำเร็จเรียบร้อยครับ!",
         newName: safeName
     };
 }

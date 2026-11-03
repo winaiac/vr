@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
-import { ref, get, update, onValue, onDisconnect, increment } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
+
+// บรรทัดนี้สำคัญมากครับ ต้องมี ref และคำสั่งอื่นๆ ครบถ้วน
+import { ref, get, update, onValue, onDisconnect, increment, set, onChildAdded, onChildRemoved } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
+
 import { appConfig } from '../config.js';
 import { updateEngagingContext, toggleReactionUI } from './engaging.js';
 import { createMeditatorAvatar } from './avatar.js';
 import { loadBuddhaWithEffects, updateBuddhaEffects } from './buddha.js';
-import { createFireflies, updateFireflies } from './fireflies.js';
+import { createFireflies, updateFireflies } from './fireflies.js';;
 
 export function setupMeditationScene(renderer, cssRenderer, db, currentUserName) {
     const scene = new THREE.Scene();
@@ -141,17 +144,96 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         window.updateGlobalHUD(); 
     }
 
-    function spawnAIBots() {
-        const botCount = Math.floor(Math.random() * 4) + 3; localBotCount = botCount; updateServerStatusUI();
+    // --- ระบบซิงค์บอท Firebase ให้นั่งบนเบาะตรงกันทุกคน ---
+    const activeBotsInScene = {};
+    const botNamesList = ["กัลยาณมิตรใจดี", "ผู้แสวงบุญ", "คนรักสงบ", "ผู้ใฝ่ธรรม", "ศิษย์ตถาคต", "ผู้เบิกบาน", "ผู้เจริญในธรรม", "คนมีเมตตา"];
+
+    function initFirebaseBots() {
+        // อิงตามห้องที่อยู่ปัจจุบัน
+        const botsRef = ref(db, `rooms/${myRoomId}/bots`);
+
+        get(botsRef).then((snapshot) => {
+            if (!snapshot.exists()) {
+                // ถ้ายังไม่มีบอทในห้อง ให้สุ่มเบาะและส่งบอทขึ้น Firebase
+                generateInitialBotsToFirebase();
+            }
+        });
+
+        // เมื่อมีการแจ้งจาก Firebase ว่ามีบอทเพิ่ม
+        onChildAdded(botsRef, (snapshot) => {
+            const botId = snapshot.key;
+            const data = snapshot.val();
+            renderBot(botId, data);
+        });
+
+        // เมื่อบอทถูกลบออก
+        onChildRemoved(botsRef, (snapshot) => {
+            const botId = snapshot.key;
+            if (activeBotsInScene[botId]) {
+                const data = snapshot.val();
+                const cushion = cushionsList[data.cushionIndex];
+                if(cushion) {
+                    cushion.userData.isOccupied = false;
+                    cushion.material.color.setHex(0x3b2219); // คืนสีเบาะเป็นสีว่าง
+                }
+                seatingGroup.remove(activeBotsInScene[botId]);
+                delete activeBotsInScene[botId];
+                localBotCount--;
+                updateServerStatusUI();
+            }
+        });
+    }
+
+    function generateInitialBotsToFirebase() {
+        const numBots = Math.floor(Math.random() * 4) + 3; // สุ่ม 3-6 ตัวเหมือนเดิม
         const availableIndices = [...Array(cushionsList.length).keys()];
-        for (let i = 0; i < botCount; i++) {
+        
+        for (let i = 0; i < numBots; i++) {
             if (availableIndices.length === 0) break;
+            // สุ่มเลขเบาะที่ว่างอยู่
             const cushionIdx = availableIndices.splice(Math.floor(Math.random() * availableIndices.length), 1)[0];
-            const botCushion = cushionsList[cushionIdx];
-            botCushion.userData.isOccupied = true; 
-            botCushion.userData.occupantName = `กัลยาณมิตร${Math.floor(Math.random() * 900 + 100)}`;
-            botCushion.material.color.setHex(0x2a1610);
-            const avatar = createMeditatorAvatar(); avatar.position.set(botCushion.position.x, 0.05, botCushion.position.z); seatingGroup.add(avatar);
+            
+            const botId = 'bot_' + i;
+            const name = botNamesList[Math.floor(Math.random() * botNamesList.length)];
+            
+            const tempAvatar = createMeditatorAvatar(name);
+            const colors = tempAvatar.userData.customColors;
+            
+            const botData = {
+                name: name,
+                colors: colors,
+                cushionIndex: cushionIdx, // ส่งเลขเบาะไปให้ Firebase จำ
+                state: 'SIT'
+            };
+            
+            set(ref(db, `rooms/${myRoomId}/bots/${botId}`), botData);
+        }
+    }
+
+    function renderBot(botId, data) {
+        if(!activeBotsInScene[botId]) {
+            localBotCount++;
+            updateServerStatusUI();
+
+            const cushion = cushionsList[data.cushionIndex];
+            if(cushion) {
+                // จองเบาะและเปลี่ยนสีเบาะเป็นสีเข้ม
+                cushion.userData.isOccupied = true; 
+                cushion.userData.occupantName = data.name;
+                cushion.material.color.setHex(0x2a1610);
+                
+                // สร้างอวตารโดยใช้สีเดียวกับที่ดึงมาจาก Firebase
+                const botAvatar = createMeditatorAvatar(data.name, data.colors);
+                // จัดให้นั่งบนเบาะเป๊ะๆ
+                botAvatar.position.set(cushion.position.x, 0.05, cushion.position.z);
+                
+                seatingGroup.add(botAvatar);
+                activeBotsInScene[botId] = botAvatar;
+            }
+
+            // ส่งชื่อบอททั้งหมดให้ระบบ Engaging เอาไปสุ่มแชทสาธุ
+            const currentBotNames = Object.values(activeBotsInScene).map(b => b.userData.userName);
+            updateEngagingContext(myRoomId, currentBotNames);
         }
     }
 
@@ -166,7 +248,7 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         }
         
         if (!targetRoom) targetRoom = `room_${maxRoomIndex + 1}`;
-        myRoomId = targetRoom; spawnAIBots(); 
+        myRoomId = targetRoom; initFirebaseBots();
         
         const myRoomCountRef = ref(db, `rooms/${myRoomId}/count`); 
         const globalCountRef = ref(db, `global_users`);
@@ -515,12 +597,15 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             updateVideoAndSchedule();
         }
 
-        // โชว์ปุ่มเมนูแคปซูลกลับมา
         const topCapsule = document.getElementById('top-capsule-menu');
         if (topCapsule) topCapsule.style.display = 'flex';
+
+        // [เพิ่มจุดนี้] ปลดล็อคพิกัดอวตาร ให้กลับมาอิงตามกล้องปกติเวลาเดิน
+        window.lockedAvatar = null; 
     }
 
-    function moveToBoard(targetPos, lookAtPos, statusText) {
+    // [แก้ไขจุดนี้] เพิ่มการรับค่าท่าทาง (poseState) ว่าจะให้นั่งหรือยืน
+    function moveToBoard(targetPos, lookAtPos, statusText, poseState = 'STAND') {
         if (!scene.visible || isTransitioning || isSeated || isReading) return;
         targetCamPos.copy(targetPos); targetLookAt.copy(lookAtPos);
         isReading = true; isTransitioning = true; controls.enabled = false;
@@ -530,7 +615,10 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         
         toggleReactionUI(false);
         
-        currentSeatStatus = `สถานะ: ยืนอ่าน (${statusText})`;
+        currentSeatStatus = `สถานะ: ${poseState === 'STAND' ? 'ยืนอ่าน' : 'นั่ง'} (${statusText})`;
+
+        // [เพิ่มจุดนี้] สั่งล็อคพิกัดและท่าทางส่งให้ Firebase ทันทีที่เข้าโหมด
+        window.lockedAvatar = { x: targetPos.x, y: 0, z: targetPos.z, state: poseState };
     }
 
     // --- 3. เพิ่มการเชื่อมต่อปุ่มแคปซูลเมนูด้านบน ---
@@ -543,14 +631,14 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             currentOverrideMode = 'PRAY'; 
             updateVideoAndSchedule();
 
-            // ใช้พิกัดจากเครื่องมือวัด มุมขอขมา
+            // ส่งคำสั่ง 'SIT' เพื่อให้นั่งขอขมา
             moveToBoard(
                 new THREE.Vector3(-2.49, 2.20, -1.27), 
                 new THREE.Vector3(-3.00, 2.00, -5.50), 
-                "บูชาพระรัตนตรัย"
+                "บูชาพระรัตนตรัย",
+                'SIT'
             );
             
-            // ซ่อนเมนูแคปซูลด้านบนทั้งหมดเมื่อเข้าโหมดนี้
             if (topCapsule) topCapsule.style.display = 'none';
         });
     }
@@ -560,14 +648,14 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             currentOverrideMode = null; 
             updateVideoAndSchedule();
 
-            // ใช้พิกัดจากเครื่องมือวัด มุมกระดานประชาสัมพันธ์
+            // ส่งคำสั่ง 'STAND' เพื่อให้ยืนอ่านบอร์ด
             moveToBoard(
                 new THREE.Vector3(1.67, 2.05, -1.29),  
                 new THREE.Vector3(2.00, 2.00, -5.50),  
-                "กระดานประชาสัมพันธ์"
+                "กระดานประชาสัมพันธ์",
+                'STAND'
             );
             
-            // ซ่อนเมนูแคปซูลด้านบนทั้งหมดเมื่อเข้าโหมดนี้
             if (topCapsule) topCapsule.style.display = 'none';
         });
     }
@@ -590,15 +678,9 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             if (isSeated || isReading) return;
 
             if (obj.userData.isHotspot) {
-                targetCamPos.copy(obj.userData.targetPos); targetLookAt.copy(obj.userData.lookAtPos);
-                isReading = true; isTransitioning = true; controls.enabled = false;
-                
-                document.getElementById('stand-btn').style.display = 'block';
-                document.getElementById('warp-btn').style.display = 'none';
-                
                 const boardType = obj.userData.type === "PR" ? "กระดานประชาสัมพันธ์" : "บอร์ดอื่นๆ";
-                currentSeatStatus = `สถานะ: ยืนอ่าน (${boardType})`;
-
+                // ดึงพิกัดจากปุ่ม hotspot และล็อคให้เป็นท่ายืน
+                moveToBoard(obj.userData.targetPos, obj.userData.lookAtPos, boardType, 'STAND');
             } else if (!obj.userData.isOccupied) {
                 obj.userData.isOccupied = true; obj.userData.isMine = true;
                 obj.material.color.setHex(0x00ffcc); mySelectedCushion = obj;
@@ -615,6 +697,9 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 document.getElementById('warp-btn').style.display = 'none';
                 
                 currentSeatStatus = `สถานะ: นั่งสมาธิ แถว ${obj.userData.row}, ตัวที่ ${obj.userData.col}`;
+
+                // [เพิ่มจุดนี้] ล็อคพิกัดอวตารให้อยู่กับเบาะนั่งอย่างตายตัว
+                window.lockedAvatar = { x: pos.x, y: 0, z: pos.z, state: 'SIT' };
             }
         }
     });

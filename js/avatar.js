@@ -9,6 +9,10 @@ function createNameTexture(nameText, baseColor, isOrb = false) {
     canvas.height = 256;
     const ctx = canvas.getContext('2d');
 
+    // สุ่มเลือกสีข้อความ: แดงสด (#ff0000) หรือ น้ำเงินสด (#0000ff)
+    const textColors = ['#ff0000', '#0000ff'];
+    const selectedTextColor = textColors[Math.floor(Math.random() * textColors.length)];
+
     if (isOrb) {
         ctx.clearRect(0, 0, 1024, 256);
         ctx.fillStyle = '#ffffff'; 
@@ -17,8 +21,15 @@ function createNameTexture(nameText, baseColor, isOrb = false) {
     } else {
         ctx.fillStyle = `#${baseColor.toString(16).padStart(6, '0')}`;
         ctx.fillRect(0, 0, 1024, 256);
-        ctx.fillStyle = '#111111'; 
-        ctx.shadowBlur = 0;
+        
+        // ตั้งค่าตัวอักษรเป็นสีแดง/น้ำเงิน พร้อมขอบสีขาวและเงาดำ เพื่อให้สีสดเด้งขึ้นมาจากเสื้อ
+        ctx.fillStyle = selectedTextColor;       
+        ctx.strokeStyle = '#ffffff';     // ใช้ขอบขาวดันสีให้สดขึ้น
+        ctx.lineWidth = 6;               
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.7)'; // เงาสีดำ
+        ctx.shadowBlur = 8;              
+        ctx.shadowOffsetX = 3;           
+        ctx.shadowOffsetY = 3;           
     }
     
     ctx.textAlign = 'center';
@@ -34,6 +45,8 @@ function createNameTexture(nameText, baseColor, isOrb = false) {
     }
     
     ctx.font = 'bold 80px Sarabun, sans-serif'; 
+    // [แก้ไขจุดที่ 2] สั่งวาดขอบ (stroke) ก่อน แล้วค่อยวาดสีเนื้อใน (fill) ทับ
+    if (!isOrb) ctx.strokeText(frontText, 256, 128); 
     ctx.fillText(frontText, 256, 128); 
 
     // ด้านหลัง
@@ -42,8 +55,11 @@ function createNameTexture(nameText, baseColor, isOrb = false) {
         const line2 = nameText.substring(10);
         
         ctx.font = 'bold 50px Sarabun, sans-serif';
+        if (!isOrb) ctx.strokeText(line1, 768, 100);
         ctx.fillText(line1, 768, 100); 
+        
         ctx.font = 'bold 60px Sarabun, sans-serif';
+        if (!isOrb) ctx.strokeText(line2, 768, 165);
         ctx.fillText(line2, 768, 165); 
     } else {
         let fontSize = 70;
@@ -51,6 +67,7 @@ function createNameTexture(nameText, baseColor, isOrb = false) {
         if (nameText.length > 12) fontSize = 45;
         
         ctx.font = `bold ${fontSize}px Sarabun, sans-serif`;
+        if (!isOrb) ctx.strokeText(nameText, 768, 128);
         ctx.fillText(nameText, 768, 128); 
     }
 
@@ -62,13 +79,14 @@ function createNameTexture(nameText, baseColor, isOrb = false) {
 // ==========================================
 // 2. ฟังก์ชันหลักสร้างอวตาร
 // ==========================================
-export function createMeditatorAvatar(userName = "กัลยาณมิตร") {
+export function createMeditatorAvatar(userName = "กัลยาณมิตร", customColors = null) {
     const group = new THREE.Group();
     group.userData = { 
         state: 'SIT', 
         isOrbMode: false,
         userName: userName,
-        shirtColorHex: 0xffffff
+        shirtColorHex: 0xffffff,
+        customColors: null // เพิ่มบรรทัดนี้
     }; 
 
     const skinPalettes = [
@@ -83,11 +101,18 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
     const shirtColors = [0xffffff, 0xffffff, 0xf5f5dc, 0xcce0ff, 0xd4f0d4, 0xffe6e6, 0xdddddd];
     const pantsColors = [0xffffff, 0xffffff, 0x333333, 0x555555, 0x8b5a2b, 0x2c3e50];
 
-    const mySkin = skinPalettes[Math.floor(Math.random() * skinPalettes.length)];
-    const myHair = hairColors[Math.floor(Math.random() * hairColors.length)];
-    const myShirt = shirtColors[Math.floor(Math.random() * shirtColors.length)];
-    const myPants = pantsColors[Math.floor(Math.random() * pantsColors.length)];
+    // แก้ไข 4 บรรทัดนี้
+    const mySkin = (customColors && customColors.skin) ? customColors.skin : skinPalettes[Math.floor(Math.random() * skinPalettes.length)];
+    const myHair = (customColors && customColors.hair) ? customColors.hair : hairColors[Math.floor(Math.random() * hairColors.length)];
+    const myShirt = (customColors && customColors.shirt) ? customColors.shirt : shirtColors[Math.floor(Math.random() * shirtColors.length)];
+    const myPants = (customColors && customColors.pants) ? customColors.pants : pantsColors[Math.floor(Math.random() * pantsColors.length)];
     
+    // [เพิ่มใหม่] สุ่มโอกาสผมยาว 50% (ถ้ามีค่าส่งมาจาก Firebase ให้ใช้ค่านั้น)
+    const myIsLongHair = (customColors && customColors.isLongHair !== undefined) ? customColors.isLongHair : (Math.random() > 0.5);
+    
+    // นำ myIsLongHair เก็บเข้า customColors เพื่อส่งขึ้น Firebase ด้วย
+    group.userData.customColors = { skin: mySkin, hair: myHair, shirt: myShirt, pants: myPants, isLongHair: myIsLongHair };
+
     group.userData.shirtColorHex = myShirt; 
     group.userData.skinMat = new THREE.MeshStandardMaterial({ color: mySkin.color, emissive: mySkin.emissive, emissiveIntensity: 0.3, roughness: 0.5 });
     group.userData.hairMat = new THREE.MeshStandardMaterial({ color: myHair, roughness: 0.9 });
@@ -268,6 +293,17 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
     hair.rotation.x = -0.15; 
     hair.position.y = 0.02; 
     headGroup.add(hair);
+
+    // [เพิ่มใหม่] เสริมผมทรงยาวประบ่าด้านหลัง
+    if (myIsLongHair) {
+        // ใช้รูปทรงแคปซูลต่อเป็นผมยาวสลวย
+        const longHairGeo = new THREE.CapsuleGeometry(0.08, 0.22, 16, 16);
+        const longHair = new THREE.Mesh(longHairGeo, group.userData.hairMat);
+        // วางตำแหน่งให้อยู่หลังศีรษะและทิ้งตัวลงมาที่หลัง (-Z คือด้านหลังของอวตาร)
+        longHair.position.set(0, -0.14, -0.09); 
+        longHair.rotation.x = -0.05; // เอียงแนบแผ่นหลังนิดๆ
+        headGroup.add(longHair);
+    }
 
     // --- โหมดดวงจิต (Orb Mode) ---
     const orbGroup = new THREE.Group();
