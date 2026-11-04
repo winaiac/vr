@@ -19,7 +19,8 @@ const { userId, userName, channelTag } = initIDPS("กัลยาณมิต�
 let currentUserName = userName;
 
 const userProfileBtn = document.getElementById('user-profile');
-userProfileBtn.innerText = `ผู้ใช้งาน: ${currentUserName}`;
+// [อัปเดต] คงไว้เฉพาะการใส่ชื่อและไอคอนดินสอ (สไตล์ถูกย้ายไป HTML แล้ว)
+userProfileBtn.innerHTML = `👤 ผู้ใช้งาน: ${currentUserName} <span style="font-size:12px; color:#ff9800;">✏️ แก้ไข</span>`;
 
 // 2. --- เพิ่มตัวแปรสำหรับจัดการผู้เล่นอื่น ---
 const otherPlayers = {}; 
@@ -64,7 +65,8 @@ const nameModalMsg = document.getElementById('name-modal-msg');
 
 const randomAvatarBtn = document.createElement('button');
 randomAvatarBtn.innerHTML = '🎲 สุ่มรูปลักษณ์ใหม่';
-randomAvatarBtn.style.cssText = 'background: #e67e22; color: white; border: none; border-radius: 8px; padding: 10px; margin-top: 10px; margin-bottom: 10px; cursor: pointer; font-family: "Sarabun"; font-weight: bold; width: 100%; display: block;';
+// [อัปเดตใหม่] ลบขอบ (margin) ออก และใช้ flex: 1.5 เพื่อให้ขยายเต็มช่องพอดีกับปุ่มอื่น
+randomAvatarBtn.style.cssText = 'flex: 1.5; background: #e67e22; color: white; border: none; border-radius: 8px; padding: 10px; cursor: pointer; font-family: "Sarabun"; font-weight: bold; margin: 0;';
 confirmNameBtn.parentNode.insertBefore(randomAvatarBtn, confirmNameBtn);
 
 let myPreviewAvatar = null; 
@@ -81,25 +83,107 @@ function showPreviewAvatar() {
     // [ซ่อนจอ YouTube] ป้องกันจอ CSS3D บังทะลุหัวอวตาร
     const cssContainer = document.getElementById('css-container');
     if (cssContainer) cssContainer.style.display = 'none';
+
+    // ==========================================
+    // [เพิ่มใหม่] 1. ซ่อน UI ที่ไม่เกี่ยวข้องตอนแต่งตัว
+    const uisToHide = [
+        'rotating-global-stats', 'meditation-ui-group', 'realm-ui-group', 
+        'top-capsule-menu', 'center-ui-group', 'fullscreen-btn', 
+        'chat-master-container', 'controls-hint'
+    ];
+    uisToHide.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.dataset.prevDisplay = el.style.display; // จำค่า display เดิมไว้
+            el.style.display = 'none';
+        }
+    });
+    // ==========================================
     
     myPreviewAvatar = createMeditatorAvatar(newNameInput.value || currentUserName, myAvatarColors);
     switchAvatarPosture(myPreviewAvatar, true); 
     
-    myPreviewAvatar.position.set(0, -0.7, -1.8); 
+    // [อัปเดตใหม่] ขยายสเกล 2 เท่า และดันพิกัด Y ลงมาที่ -1.3 เพื่อไม่ให้ตัวลอย
+    myPreviewAvatar.position.set(0, -1.0, -1.8); 
+    myPreviewAvatar.scale.set(2, 2, 2);
     
     autoRotationAngle = 0;
     manualRotationOffset = 0;
     myPreviewAvatar.rotation.y = 0; 
+
+    // [เพิ่มบรรทัดนี้] สั่งให้อวตารก้มตัวลงเล็กน้อย (ประมาณ 8 องศา) เพื่อให้สบตากับผู้ใช้พอดี
+    myPreviewAvatar.rotation.x = 0.15; 
+    // ==========================================
+    // [เพิ่มบรรทัดนี้] รีเซ็ตเวลาเพื่อให้เริ่มพูด "สวัสดี" ทุกครั้งที่เปิดหน้าต่าง
+    greetingStartTime = Date.now();
+    // ==========================================
     
     previewLight = new THREE.Group(); 
     const pLight = new THREE.PointLight(0xffffff, 5.0, 5); 
     pLight.position.set(0, 0.2, -0.8); 
     const aLight = new THREE.AmbientLight(0xffffff, 1.5); 
+    
+    // ==========================================
+    // [เพิ่มใหม่] 2. จัดแสง Rim Light ส่องมาจากด้านหลังให้ตัวละครดูมีมิติ 3D (ซ้ายส้ม ขวาฟ้า)
+    const rimLightBlue = new THREE.PointLight(0x00e5ff, 8.0, 5); 
+    rimLightBlue.position.set(1.5, 1, -2.5); 
+    const rimLightOrange = new THREE.PointLight(0xff9800, 8.0, 5); 
+    rimLightOrange.position.set(-1.5, -0.5, -2.5); 
+    
     previewLight.add(pLight);
     previewLight.add(aLight);
+    previewLight.add(rimLightBlue);
+    previewLight.add(rimLightOrange);
+    // ==========================================
     
-    const bgGeo = new THREE.PlaneGeometry(20, 20);
-    const bgMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.85, depthWrite: false });
+   // ==========================================
+    // [อัปเดตใหม่] 3. สร้างฉากหลังออร่าด้วย Shader (ปรับแก้รัศมีและคอนทราสต์แสง)
+    const bgGeo = new THREE.PlaneGeometry(20, 20); // ปรับขนาดแผ่นลงนิดหน่อย
+    const bgMat = new THREE.ShaderMaterial({
+        uniforms: {
+            time: { value: 0.0 }
+        },
+        vertexShader: `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform float time;
+            varying vec2 vUv;
+            void main() {
+                // คำนวณระยะห่างจากกึ่งกลาง (0.5, 0.5)
+                float dist = distance(vUv, vec2(0.5, 0.5));
+                
+                // [แก้จุดสำคัญ] บีบรัศมีออร่าให้อยู่แค่กระจุกตรงกลาง (จาก 0.5 เหลือ 0.15)
+                float aura = smoothstep(0.15, 0.0, dist);
+                
+                // เอฟเฟกต์การหายใจ/วูบวาบ (Pulse) ให้แกว่งกว้างขึ้น
+                float pulse = (sin(time * 2.5) * 0.5) + 0.5; // ค่าจะสลับไปมาระหว่าง 0.0 ถึง 1.0
+                
+                // ปรับความสว่างของแสงให้ชัดเจน (สว่างสุด 1.0, หรี่สุด 0.4)
+                float intensity = 0.4 + (pulse * 0.6);
+                
+                // สีขอบ (ดำอมน้ำเงินเข้มจัดๆ เพื่อตัดกับออร่า)
+                vec3 edgeColor = vec3(0.01, 0.01, 0.02);
+                
+                // สีแสงออร่า (ฟ้าสว่าง Cyan)
+                vec3 centerColor = vec3(0.0, 0.8, 1.0); 
+                
+                // ผสมสีตามระยะรัศมีและความวูบวาบ
+                vec3 finalColor = mix(edgeColor, centerColor, aura * intensity);
+                
+                // ความโปร่งแสงให้พอเห็นเงาลางๆ ข้างหลัง (0.95)
+                gl_FragColor = vec4(finalColor, 0.95);
+            }
+        `,
+        transparent: true,
+        depthWrite: false
+    });
+    // ==========================================
+    
     previewDarkBG = new THREE.Mesh(bgGeo, bgMat);
     previewDarkBG.position.set(0, 0, -2.5); 
     
@@ -116,9 +200,24 @@ function hidePreviewAvatar() {
     previewLight = null;
     previewDarkBG = null;
     
-    // [แสดงจอ YouTube กลับมา] เมื่อปิดหน้าต่างเปลี่ยนชื่อ
+    // [แสดงจอ YouTube กลับมา]
     const cssContainer = document.getElementById('css-container');
     if (cssContainer) cssContainer.style.display = 'block';
+
+    // ==========================================
+    // [เพิ่มใหม่] 4. คืนค่าการแสดงผล UI ทั้งหมดกลับมาเหมือนเดิม
+    const uisToHide = [
+        'rotating-global-stats', 'meditation-ui-group', 'realm-ui-group', 
+        'top-capsule-menu', 'center-ui-group', 'fullscreen-btn', 
+        'chat-master-container', 'controls-hint'
+    ];
+    uisToHide.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.dataset.prevDisplay !== undefined) {
+            el.style.display = el.dataset.prevDisplay;
+        }
+    });
+    // ==========================================
 }
 
 userProfileBtn.addEventListener('click', () => {
@@ -129,12 +228,12 @@ userProfileBtn.addEventListener('click', () => {
 
     if (now - lastChangeTime < cooldown) {
         const remainMin = Math.ceil((cooldown - (now - lastChangeTime)) / 60000);
-        const originalText = userProfileBtn.innerText;
-        userProfileBtn.innerText = `⏳ เปลี่ยนชื่อได้อีกครั้งใน ${remainMin} นาที`;
+        const originalText = userProfileBtn.innerHTML;
+        userProfileBtn.innerHTML = `⏳ รออีก ${remainMin} นาที`;
         userProfileBtn.style.color = "#ff5252"; 
         setTimeout(() => {
-            userProfileBtn.innerText = originalText;
-            userProfileBtn.style.color = "#ff9800"; 
+            userProfileBtn.innerHTML = originalText;
+            userProfileBtn.style.color = "#ffffff"; 
         }, 3000);
     }
 
@@ -156,7 +255,7 @@ userProfileBtn.addEventListener('click', () => {
 
     // เปลี่ยนข้อความอธิบายในหน้าต่างให้เป็น 10 นาที
     const descText = innerBox.querySelector('p');
-    if (descText) descText.innerText = "คุณสามารถเปลี่ยนชื่อได้ทุก 10 นาที";
+    if (descText) descText.innerHTML = `คุณสามารถเปลี่ยนชื่อได้ <span style="color: #ff5252;">ทุกๆ 10 นาที</span>`;
 
     confirmNameBtn.innerText = 'บันทึก';
 
@@ -220,16 +319,17 @@ confirmNameBtn.addEventListener('click', () => {
     
     if (result.success) {
         currentUserName = result.newName;
-        userProfileBtn.innerText = `👤 ผู้ใช้งาน: ${currentUserName}`;
+        // [แก้ไข] อัปเดตชื่อใหม่โดยรักษาไอคอนดินสอไว้
+        userProfileBtn.innerHTML = `👤 ผู้ใช้งาน: ${currentUserName} <span style="font-size:12px; color:#ff9800;">✏️ แก้ไข</span>`;
         
         nameModalMsg.innerText = result.message; 
         nameModalMsg.style.color = "#00ffcc";
         nameModalMsg.style.display = "block";
-        // [เพิ่มใหม่] บันทึกเวลาล่าสุดที่เปลี่ยนชื่อสำเร็จลงเครื่อง
+        // บันทึกเวลาล่าสุดที่เปลี่ยนชื่อสำเร็จลงเครื่อง
         localStorage.setItem('app_last_name_change_time', Date.now());
+        
         updateMyPositionToFirebase(); 
-        // [เพิ่มบรรทัดนี้] สั่งให้ระบบแชทรับรู้ชื่อใหม่ทันที
-        updateChatUserName(currentUserName);
+        updateChatUserName(currentUserName); // สั่งให้ระบบแชทรับรู้ชื่อใหม่ทันที
         
         setTimeout(() => {
             nameModal.style.display = 'none';
@@ -343,7 +443,7 @@ function initPlayerSync() {
         }
 
         // ===========================================
-        // [เพิ่มใหม่] เช็คว่าถ้าชื่อเปลี่ยน หรือ สีเสื้อ/สีผิวเปลี่ยน ให้ลบอวตารเพื่อนตัวเก่าทิ้งเพื่อวาดใหม่
+        // เช็คว่าถ้าชื่อเปลี่ยน หรือ สีเสื้อ/สีผิวเปลี่ยน ให้ลบอวตารเพื่อนตัวเก่าทิ้งเพื่อวาดใหม่
         if (otherPlayers[uid]) {
             const oldName = otherPlayers[uid].userData.userName;
             const oldColors = JSON.stringify(otherPlayers[uid].userData.customColors);
@@ -478,17 +578,67 @@ document.addEventListener('fullscreenchange', () => {
     }
 });
 
+// ==========================================
+// ตัวแปรสำหรับระบบขยับปาก
+let talkTimer = 0;
+let isTalking = false; 
+let greetingStartTime = 0; 
+// ==========================================
+
 renderer.setAnimationLoop(() => {
     if (activeModule && activeModule.update) activeModule.update();
 
     updateMyPositionToFirebase();
 
-    // สั่งหมุนอวตารพรีวิว
+    // ==========================================
+    // ระบบมีชีวิต: พรีวิวอวตาร
     if (myPreviewAvatar) {
-        if (!isDraggingAvatar) {
-            autoRotationAngle -= 0.005; 
-        }
-        myPreviewAvatar.rotation.y = autoRotationAngle + manualRotationOffset;
+        myPreviewAvatar.rotation.y = manualRotationOffset;
+        myPreviewAvatar.position.y = -1.0 + (Math.sin(Date.now() * 0.002) * 0.015); // หายใจ
+        
+        // ให้พรีวิวอวตารกระพริบตาเอง
+        if (myPreviewAvatar.update) myPreviewAvatar.update();
+
+        // โค้ดปากขยับตอนพูด
+        myPreviewAvatar.traverse((child) => {
+            if (child.isMesh) {
+                const name = child.name.toLowerCase();
+                let isMouth = name.includes('mouth');
+                
+                if (child.parent && child.parent.name === 'headGroup' && child.position.z >= 0.10) {
+                    const hex = child.material && child.material.color ? child.material.color.getHex() : -1;
+                    if (hex === 0x994444) isMouth = true; 
+                }
+
+                if (isMouth) {
+                    let elapsed = Date.now() - greetingStartTime;
+                    let targetScaleX = 1.0; let targetScaleY = 1.0; 
+                    
+                    if (elapsed < 1400) {
+                        if (elapsed < 350) { targetScaleX = 2.0; targetScaleY = 0.9; } 
+                        else if (elapsed < 750) { targetScaleX = 3.5; targetScaleY = 1.1; } 
+                        else { targetScaleX = 0.5; targetScaleY = 1.4; }
+                    } else if (isTalking) {
+                        let wave = Math.sin(Date.now() * 0.015);
+                        targetScaleX = 1.0 + Math.max(0, wave * 2.5); 
+                        targetScaleY = 1.0 - (wave * 0.1); 
+                    }
+                    child.scale.x += (targetScaleX - child.scale.x) * 0.3;
+                    child.scale.y += (targetScaleY - child.scale.y) * 0.3;
+                }
+            }
+        });
+    }
+
+    // [เพิ่มใหม่] สั่งให้อวตารผู้เล่นอื่นกระพริบตาด้วย
+    Object.values(otherPlayers).forEach(avatar => {
+        if (avatar.update) avatar.update();
+    });
+    // ==========================================
+
+    // สั่งให้แสงออร่าฉากหลังวูบวาบตามเวลา
+    if (previewDarkBG && previewDarkBG.material.uniforms) {
+        previewDarkBG.material.uniforms.time.value += 0.015; 
     }
 
     renderer.render(activeModule.scene, activeModule.camera);

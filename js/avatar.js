@@ -9,7 +9,6 @@ function createNameTexture(nameText, baseColor, isOrb = false) {
     canvas.height = 256;
     const ctx = canvas.getContext('2d');
 
-    // สุ่มเลือกสีข้อความ: แดงสด (#ff0000) หรือ น้ำเงินสด (#0000ff)
     const textColors = ['#ff0000', '#0000ff'];
     const selectedTextColor = textColors[Math.floor(Math.random() * textColors.length)];
 
@@ -22,11 +21,10 @@ function createNameTexture(nameText, baseColor, isOrb = false) {
         ctx.fillStyle = `#${baseColor.toString(16).padStart(6, '0')}`;
         ctx.fillRect(0, 0, 1024, 256);
         
-        // ตั้งค่าตัวอักษรเป็นสีแดง/น้ำเงิน พร้อมขอบสีขาวและเงาดำ เพื่อให้สีสดเด้งขึ้นมาจากเสื้อ
         ctx.fillStyle = selectedTextColor;       
-        ctx.strokeStyle = '#ffffff';     // ใช้ขอบขาวดันสีให้สดขึ้น
+        ctx.strokeStyle = '#ffffff';     
         ctx.lineWidth = 6;               
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.7)'; // เงาสีดำ
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.7)'; 
         ctx.shadowBlur = 8;              
         ctx.shadowOffsetX = 3;           
         ctx.shadowOffsetY = 3;           
@@ -35,7 +33,6 @@ function createNameTexture(nameText, baseColor, isOrb = false) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // ด้านหน้า
     let frontText = nameText;
     if (nameText.startsWith("กัลยาณมิตร")) {
         frontText = nameText.substring(10).trim(); 
@@ -45,11 +42,9 @@ function createNameTexture(nameText, baseColor, isOrb = false) {
     }
     
     ctx.font = 'bold 80px Sarabun, sans-serif'; 
-    // [แก้ไขจุดที่ 2] สั่งวาดขอบ (stroke) ก่อน แล้วค่อยวาดสีเนื้อใน (fill) ทับ
     if (!isOrb) ctx.strokeText(frontText, 256, 128); 
     ctx.fillText(frontText, 256, 128); 
 
-    // ด้านหลัง
     if (nameText.startsWith("กัลยาณมิตร")) {
         const line1 = "กัลยาณมิตร";
         const line2 = nameText.substring(10);
@@ -86,7 +81,7 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
         isOrbMode: false,
         userName: userName,
         shirtColorHex: 0xffffff,
-        customColors: null // เพิ่มบรรทัดนี้
+        customColors: null
     }; 
 
     const skinPalettes = [
@@ -101,16 +96,13 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
     const shirtColors = [0xffffff, 0xffffff, 0xf5f5dc, 0xcce0ff, 0xd4f0d4, 0xffe6e6, 0xdddddd];
     const pantsColors = [0xffffff, 0xffffff, 0x333333, 0x555555, 0x8b5a2b, 0x2c3e50];
 
-    // แก้ไข 4 บรรทัดนี้
     const mySkin = (customColors && customColors.skin) ? customColors.skin : skinPalettes[Math.floor(Math.random() * skinPalettes.length)];
     const myHair = (customColors && customColors.hair) ? customColors.hair : hairColors[Math.floor(Math.random() * hairColors.length)];
     const myShirt = (customColors && customColors.shirt) ? customColors.shirt : shirtColors[Math.floor(Math.random() * shirtColors.length)];
     const myPants = (customColors && customColors.pants) ? customColors.pants : pantsColors[Math.floor(Math.random() * pantsColors.length)];
     
-    // [เพิ่มใหม่] สุ่มโอกาสผมยาว 50% (ถ้ามีค่าส่งมาจาก Firebase ให้ใช้ค่านั้น)
     const myIsLongHair = (customColors && customColors.isLongHair !== undefined) ? customColors.isLongHair : (Math.random() > 0.5);
     
-    // นำ myIsLongHair เก็บเข้า customColors เพื่อส่งขึ้น Firebase ด้วย
     group.userData.customColors = { skin: mySkin, hair: myHair, shirt: myShirt, pants: myPants, isLongHair: myIsLongHair };
 
     group.userData.shirtColorHex = myShirt; 
@@ -154,24 +146,17 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
     lowerBodyStand.name = "lowerBodyStand";
     lowerBodyStand.visible = false; 
 
-    // 1. ปรับขนาดสะโพก/เป้ากางเกง
-    // เปลี่ยน SphereGeometry จาก 0.15 เป็น 0.18 (ให้ลูกกลมตั้งต้นใหญ่ขึ้น)
     const pelvisStand = new THREE.Mesh(new THREE.SphereGeometry(0.18, 32, 16), group.userData.pantsMat);
-    
-    // ปรับสเกล scale.set(แกน X ความกว้าง, แกน Y ความสูง, แกน Z ความหนาหน้า-หลัง)
-    // เปลี่ยนเป็น (1.1, 0.5, 0.9) ให้กว้างและหนาขึ้นรับกับลำตัว
     pelvisStand.scale.set(1.1, 0.5, 0.9); 
     pelvisStand.position.set(0, 0.28, 0); 
     lowerBodyStand.add(pelvisStand);
 
-    // 2. ปรับขนาดขาซ้าย-ขวา
-    // CapsuleGeometry(รัศมีความอ้วน, ความยาว, ...) เปลี่ยนรัศมีจาก 0.05 เป็น 0.075 ให้ขาดูมีเนื้อมีหนังขึ้น
     const leftLeg = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.3, 16, 16), group.userData.pantsMat);
-    leftLeg.position.set(-0.08, 0.15, 0); // ถ่างขาออกซ้ายนิดนึง (-0.08) เพื่อไม่ให้ขากินพื้นที่กันเอง
+    leftLeg.position.set(-0.08, 0.15, 0); 
     lowerBodyStand.add(leftLeg);
 
     const rightLeg = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.3, 16, 16), group.userData.pantsMat);
-    rightLeg.position.set(0.08, 0.15, 0); // ถ่างขาออกขวานิดนึง (0.08)
+    rightLeg.position.set(0.08, 0.15, 0); 
     lowerBodyStand.add(rightLeg);
 
     humanBodyGroup.add(lowerBodyStand);
@@ -255,14 +240,61 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 32, 32), group.userData.skinMat);
     headGroup.add(head);
 
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
-    const eyeGeo = new THREE.SphereGeometry(0.015, 8, 8);
-    const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-    leftEye.position.set(-0.04, 0.02, 0.10);
+    // ==========================================
+    // [อัปเดต] ดวงตาแบบมีม่านตาสีสัน (แก้ระยะ Z ป้องกันตาจม 100%)
+    const scleraMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 }); 
+    const pupilMat = new THREE.MeshBasicMaterial({ color: 0x111111 }); 
+    const catchlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); 
+
+    // สุ่มสีม่านตา (ฟ้า, เขียว, น้ำตาล)
+    const eyeColors = [0x2c6b9e, 0x4a7c59, 0x5c3a21]; 
+    const myEyeColor = eyeColors[Math.floor(Math.random() * eyeColors.length)];
+    const irisMat = new THREE.MeshBasicMaterial({ color: myEyeColor });
+
+    const scleraGeo = new THREE.SphereGeometry(0.012, 16, 16);    
+    const irisGeo = new THREE.SphereGeometry(0.008, 16, 16);     
+    const pupilGeo = new THREE.SphereGeometry(0.005, 16, 16);    
+    const catchlightGeo = new THREE.SphereGeometry(0.0015, 8, 8); 
+
+    function createDetailedEye(name, posX, rotY) {
+        const eyeGroup = new THREE.Group();
+        eyeGroup.name = name;
+        
+        eyeGroup.position.set(posX, 0.01, 0.103); 
+        eyeGroup.rotation.y = rotY;
+        eyeGroup.scale.set(1.2, 1.0, 0.15); 
+
+        // 1. ตาขาว (จุดสูงสุดของความโค้งจะอยู่ที่ Z = 0.012)
+        const sclera = new THREE.Mesh(scleraGeo, scleraMat);
+        eyeGroup.add(sclera);
+
+        // 2. ม่านตาสี (ดัน Z ออกมาที่ 0.011 เพื่อให้ทะลุผิวตาขาวขึ้นมา)
+        const iris = new THREE.Mesh(irisGeo, irisMat);
+        iris.position.set(0, 0, 0.011);
+        iris.scale.set(1, 1, 0.3); 
+        eyeGroup.add(iris);
+
+        // 3. ตาดำ (ดัน Z ออกมาที่ 0.012 เพื่อให้ทับบนม่านตาอีกชั้น)
+        const pupil = new THREE.Mesh(pupilGeo, pupilMat);
+        pupil.position.set(0, 0, 0.012); 
+        pupil.scale.set(1, 1, 0.3); 
+        eyeGroup.add(pupil);
+
+        // 4. ประกายตา (ดัน Z ออกมาที่ 0.013 ให้ลอยอยู่หน้าสุด)
+        const catchlight = new THREE.Mesh(catchlightGeo, catchlightMat);
+        catchlight.position.set(-0.003, 0.003, 0.013); 
+        catchlight.scale.set(1, 1, 0.5);
+        eyeGroup.add(catchlight);
+
+        return eyeGroup;
+    }
+
+    const leftEye = createDetailedEye("leftEye", -0.04, -0.25);
     headGroup.add(leftEye);
-    const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-    rightEye.position.set(0.04, 0.02, 0.10);
+    
+    const rightEye = createDetailedEye("rightEye", 0.04, 0.25);
     headGroup.add(rightEye);
+    // ==========================================
 
     const noseGeo = new THREE.ConeGeometry(0.015, 0.04, 16);
     const nose = new THREE.Mesh(noseGeo, group.userData.skinMat);
@@ -272,7 +304,9 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
 
     const lipMat = new THREE.MeshStandardMaterial({ color: 0x994444, roughness: 0.7 });
     const lipGeo = new THREE.CapsuleGeometry(0.005, 0.025, 4, 8);
+
     const mouth = new THREE.Mesh(lipGeo, lipMat);
+    mouth.name = "mouth"; 
     mouth.position.set(0, -0.05, 0.10);
     mouth.rotation.z = Math.PI / 2;
     headGroup.add(mouth);
@@ -294,14 +328,11 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
     hair.position.y = 0.02; 
     headGroup.add(hair);
 
-    // [เพิ่มใหม่] เสริมผมทรงยาวประบ่าด้านหลัง
     if (myIsLongHair) {
-        // ใช้รูปทรงแคปซูลต่อเป็นผมยาวสลวย
         const longHairGeo = new THREE.CapsuleGeometry(0.08, 0.22, 16, 16);
         const longHair = new THREE.Mesh(longHairGeo, group.userData.hairMat);
-        // วางตำแหน่งให้อยู่หลังศีรษะและทิ้งตัวลงมาที่หลัง (-Z คือด้านหลังของอวตาร)
         longHair.position.set(0, -0.14, -0.09); 
-        longHair.rotation.x = -0.05; // เอียงแนบแผ่นหลังนิดๆ
+        longHair.rotation.x = -0.05; 
         headGroup.add(longHair);
     }
 
@@ -343,8 +374,32 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
     orbNameSprite.position.set(0, 0.65, 0); 
     orbGroup.add(orbNameSprite);
 
-    group.rotation.y = Math.PI;
+    // ==========================================
+    // [อัปเดต] ฝังระบบกระพริบตาอัตโนมัติ (Self-Blinking)
+    group.userData.nextBlinkTime = Date.now() + Math.random() * 3000;
+    group.userData.blinkEndTime = 0;
+    group.userData.isBlinking = false;
 
+    group.update = function() {
+        if (group.userData.isOrbMode) return; 
+
+        const now = Date.now();
+        if (now > group.userData.nextBlinkTime) {
+            group.userData.isBlinking = true;
+            group.userData.blinkEndTime = now + 150; 
+            group.userData.nextBlinkTime = now + 2000 + Math.random() * 4000; 
+        }
+        if (now > group.userData.blinkEndTime) {
+            group.userData.isBlinking = false;
+        }
+
+        const targetScaleY = group.userData.isBlinking ? 0.1 : 1.0;
+        if (leftEye) leftEye.scale.y += (targetScaleY - leftEye.scale.y) * 0.3;
+        if (rightEye) rightEye.scale.y += (targetScaleY - rightEye.scale.y) * 0.3;
+    };
+    // ==========================================
+
+    group.rotation.y = Math.PI;
     return group;
 }
 
@@ -352,41 +407,27 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
 // 3. ฟังก์ชันสลับท่าทางและโหมด
 // ==========================================
 
-// ฟังก์ชันจัดท่าแขน: ท่านั่ง (ปรับแขนท่อนล่างให้ตกลงต่ำ วางบนตัก)
 function setArmPostureSit(leftArm, rightArm) {
-    // --- แขนซ้าย ---
-    // หมุนไหล่ให้แขนท่อนบนแนบลำตัว ชี้ลงล่าง และมาด้านหน้าเล็กน้อย
     leftArm.rotation.set(-0.2, 0, -0.1); 
-    
-    // 1. หมุนศอกให้แขนท่อนล่างงอมาด้านหน้า แต่ "กดต่ำลง" (แกน X ลดลงจาก -1.2 เป็น -0.8)
     leftArm.children[1].rotation.set(-1.2, 0.9, 0); 
-    // 2. ขยับแขนท่อนล่างให้ต่อสนิท (Y=ขยับขึ้น, Z=ดันมาด้านหน้า)
     leftArm.children[1].position.set(0, -0.19, 0.1); 
-    
-    // 3. ขยับมือให้ตามแขนท่อนล่าง
     leftArm.children[2].rotation.set(-1.5, 0.9, 0); 
-    leftArm.children[2].position.set(0, -0.26, 0.12); // ปรับตำแหน่งแกน Y, Z ให้รับกับศอก
+    leftArm.children[2].position.set(0, -0.26, 0.12); 
     
-    // --- แขนขวา ---
     rightArm.rotation.set(-0.2, 0, 0.1);
-    
     rightArm.children[1].rotation.set(-1.2, 0.9, 0); 
     rightArm.children[1].position.set(0, -0.19, 0.1); 
-    
     rightArm.children[2].rotation.set(-0.8, -0.4, 0); 
     rightArm.children[2].position.set(0, -0.26, 0.12); 
 }
 
-// ฟังก์ชันจัดท่าแขน: ท่ายืนตรง (ต้องรีเซ็ตค่ากลับมาเวลาลุกยืน)
 function setArmPostureStand(leftArm, rightArm) {
-    // แขนซ้าย
     leftArm.rotation.set(0, 0, -0.1); 
     leftArm.children[1].rotation.set(0, 0, 0); 
-    leftArm.children[1].position.set(0, -0.24, 0); // คืนตำแหน่งเดิมแขนท่อนล่างตอนยืน
+    leftArm.children[1].position.set(0, -0.24, 0); 
     leftArm.children[2].rotation.set(0, 0, 0);
-    leftArm.children[2].position.set(0, -0.34, 0); // คืนตำแหน่งเดิมมือ
+    leftArm.children[2].position.set(0, -0.34, 0); 
     
-    // แขนขวา
     rightArm.rotation.set(0, 0, 0.1); 
     rightArm.children[1].rotation.set(0, 0, 0); 
     rightArm.children[1].position.set(0, -0.24, 0); 

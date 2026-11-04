@@ -342,7 +342,16 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     div.style.backfaceVisibility = 'hidden';
     div.style.webkitBackfaceVisibility = 'hidden';
 
-    const iframe = document.createElement('iframe'); iframe.width = "700"; iframe.height = "400"; iframe.frameBorder = "0"; iframe.allowFullscreen = true; iframe.style.borderRadius = "4px"; 
+    const iframe = document.createElement('iframe'); 
+    iframe.width = "700"; 
+    iframe.height = "400"; 
+    iframe.frameBorder = "0"; 
+    iframe.allowFullscreen = true; 
+    
+    // [แก้ไขจุดนี้] เพิ่มการอนุญาตให้เล่นอัตโนมัติ (Autoplay) ผ่าน iframe
+    iframe.allow = "autoplay; encrypted-media; fullscreen"; 
+    
+    iframe.style.borderRadius = "4px"; 
     iframe.style.backfaceVisibility = 'hidden';
     iframe.style.webkitBackfaceVisibility = 'hidden';
     div.appendChild(iframe);
@@ -420,16 +429,41 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     const bgGrad = ctx.createLinearGradient(0, 0, 0, 720); bgGrad.addColorStop(0, '#1a0b00'); bgGrad.addColorStop(0.5, '#3b1c00'); bgGrad.addColorStop(1, '#1a0b00');
     ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 4; ctx.strokeRect(40, 40, 1200, 640);
-    ctx.fillStyle = '#ffd700'; ctx.font = 'bold 70px Sarabun, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🎧 โหมดวิทยุสมาธิ (VR Audio)', canvas.width / 2, 160);
-    ctx.beginPath(); ctx.moveTo(350, 230); ctx.lineTo(930, 230); ctx.strokeStyle = '#ffeb3b'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = '#ffffff'; ctx.font = '36px Sarabun, sans-serif'; ctx.fillText('เพื่อให้ท่านได้รับฟังเสียงสวดมนต์ในขณะอยู่ภายในโลกเสมือนจริง', canvas.width / 2, 310);
-    ctx.fillStyle = '#00ffcc'; ctx.font = 'bold 42px Sarabun, sans-serif'; ctx.fillText('คำแนะนำขั้นตอนการใช้งาน:', canvas.width / 2, 400);
-    ctx.fillStyle = '#ffffff'; ctx.font = '34px Sarabun, sans-serif';
+    
+    ctx.fillStyle = '#ffd700'; ctx.font = 'bold 70px Sarabun, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; 
+    ctx.fillText('🎧 โหมดวิทยุสมาธิ (VR Audio)', canvas.width / 2, 140);
+    
+    ctx.beginPath(); ctx.moveTo(350, 210); ctx.lineTo(930, 210); ctx.strokeStyle = '#ffeb3b'; ctx.lineWidth = 2; ctx.stroke();
+    
+    ctx.fillStyle = '#ffffff'; ctx.font = '36px Sarabun, sans-serif'; 
+    ctx.fillText('เพื่อให้ท่านได้รับฟังเสียงสวดมนต์ในขณะอยู่ภายในโลกเสมือนจริง', canvas.width / 2, 270);
+    
+    // ===========================================
+    // [อัปเดต] เช็คระบบปฏิบัติการว่าเป็น Windows หรือไม่ เพื่อแสดงข้อความที่เหมาะสม
+    const isWindows = navigator.userAgent.toLowerCase().includes('windows');
+    ctx.fillStyle = '#4CAF50'; ctx.font = 'bold 32px Sarabun, sans-serif'; 
+    
+    if (isWindows) {
+        // ถ้าเป็น Windows ให้บอกทริคพับจอ
+        ctx.fillText('💡 ทริคสำหรับ Windows: สามารถย่อหน้าต่าง (Minimize) เพื่อเป็นโหมดฟังเสียงได้', canvas.width / 2, 330);
+    } else {
+        // ถ้าไม่แน่ใจ หรือเป็นมือถือ/แท็บเล็ต/Mac ให้บอกให้เปิดหน้าเว็บทิ้งไว้
+        ctx.fillText('💡 คำแนะนำ: กรุณาเปิดหน้าเว็บทิ้งไว้เพื่อการฟังเสียงสวดมนต์อย่างต่อเนื่อง', canvas.width / 2, 330);
+    }
+    // ===========================================
+    
+    ctx.fillStyle = '#00ffcc'; ctx.font = 'bold 42px Sarabun, sans-serif'; 
+    ctx.fillText('คำแนะนำขั้นตอนการใช้งาน:', canvas.width / 2, 410);
+    
+    ctx.fillStyle = '#ffffff'; ctx.font = '32px Sarabun, sans-serif';
     ctx.fillText('1. ถอดแว่น หรือกดปุ่ม "EXIT VR" ด้านล่าง เพื่อออกไปที่หน้าจอปกติก่อน', canvas.width / 2, 470);
-    ctx.fillText('2. กดปุ่ม ▶️ Play ที่จอวิดีโอ YouTube เพื่อให้เสียงสวดมนต์เริ่มทำงาน', canvas.width / 2, 530);
+    ctx.fillText('2. แตะที่จอ YouTube 1 ครั้งเพื่อปลดล็อคระบบเสียง (หากยังไม่ได้ยินเสียง)', canvas.width / 2, 530);
     ctx.fillText('3. กดปุ่ม "ENTER VR" เพื่อกลับเข้าสู่ลานปฏิบัติธรรมอีกครั้ง', canvas.width / 2, 590);
+    
     const vrTextTexture = new THREE.CanvasTexture(canvas); vrTextTexture.colorSpace = THREE.SRGBColorSpace;
-    const vrScreen = new THREE.Mesh(new THREE.PlaneGeometry(7.0, 3.9), new THREE.MeshBasicMaterial({ map: vrTextTexture })); vrScreen.position.set(0, 0, 0.11); tvGroup.add(vrScreen);
+    const vrScreen = new THREE.Mesh(new THREE.PlaneGeometry(7.0, 3.9), new THREE.MeshBasicMaterial({ map: vrTextTexture })); 
+    vrScreen.position.set(0, 0, 0.11); 
+    tvGroup.add(vrScreen);
 
     // --- 2. ยุบรวม Board ทั้ง 3 เป็นบอร์ดเดียว (PR Board 3-in-1) ไว้ทางขวา ---
     const hotspotGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.05, 32);
@@ -771,13 +805,57 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                     controls.minAzimuthAngle = -Infinity; controls.maxAzimuthAngle = Infinity;
                 }
             }
-        } else if (controls.enabled) { controls.update(); }
+        } else if (controls.enabled) { 
+            controls.update(); 
+            
+            // ==========================================
+            // [อัปเดต] ล็อกขอบเขตมุมกล้องและพิกัดการเดิน (Boundary Clamping)
+            
+            // 1. ล็อกความสูง (แกน Y)
+            // - ป้องกันมุดใต้ดิน (ต่ำสุด 0.5)
+            // - ป้องกันลอยเหนือเศียรพระประธาน (สูงสุด 3.0)
+            if (camera.position.y < 0.5) camera.position.y = 0.5;
+            if (camera.position.y > 3.0) camera.position.y = 3.0;
+
+            // 2. ล็อกระยะการเดินลึกเข้าไปในจอ (แกน Z)
+            // - จอทีวีอยู่แถวๆ Z = -5.5 เราจะบล็อกให้เดินใกล้สุดได้แค่ Z = -4.5 (ไม่ให้ทะลุจอ)
+            // - ถอยหลังสุดได้ถึง Z = 15.0
+            if (camera.position.z < -4.5) camera.position.z = -4.5;
+            if (camera.position.z > 15.0) camera.position.z = 15.0;
+
+            // 3. ล็อกระยะการเดินซ้าย-ขวา (แกน X)
+            // - ไม่ให้ออกนอกลานดิน (ซ้ายสุด -7.5, ขวาสุด 7.5)
+            if (camera.position.x < -7.5) camera.position.x = -7.5;
+            if (camera.position.x > 7.5) camera.position.x = 7.5;
+
+            // 4. ล็อกการเงยหน้า (Polar Angle)
+            // - ไม่ให้ก้มจนเห็นแต่พื้นมากเกินไป และไม่เงยหน้าจนทะลุเพดานป่า
+            // Math.PI / 2 คือระดับสายตาขนานพื้น
+            const minLookUp = (Math.PI / 2) - 0.5; // เงยสุด
+            const maxLookDown = (Math.PI / 2) + 0.3; // ก้มสุด
+            
+            if (controls.getPolarAngle() < minLookUp) {
+                controls.minPolarAngle = minLookUp;
+            } else if (controls.getPolarAngle() > maxLookDown) {
+                controls.maxPolarAngle = maxLookDown;
+            } else {
+                controls.minPolarAngle = 0; 
+                controls.maxPolarAngle = Math.PI; 
+            }
+            // ==========================================
+        }
 
         if (scene.visible) {
             updateBuddhaEffects();
+            updateFireflies();
+            
+            // ==========================================
+            // [เพิ่มใหม่] สั่งให้อวตารบอททั้งหมดกระพริบตา
+            Object.values(activeBotsInScene).forEach(bot => {
+                if (bot.update) bot.update();
+            });
+            // ==========================================
         }
-
-        if (scene.visible) updateFireflies();
 
         if (scene.visible) {
             const tvWorldPos = new THREE.Vector3();
