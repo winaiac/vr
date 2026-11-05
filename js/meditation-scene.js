@@ -8,7 +8,7 @@ import { ref, get, update, onValue, onDisconnect, increment, set, onChildAdded, 
 import { appConfig } from '../config.js';
 import { updateEngagingContext, toggleReactionUI } from './engaging.js';
 import { createMeditatorAvatar } from './avatar.js';
-import { loadBuddhaWithEffects, updateBuddhaEffects } from './buddha.js';
+import { loadBuddhaWithEffects, updateBuddhaEffects, togglePrayLight } from './buddha.js';
 import { createFireflies, updateFireflies } from './fireflies.js';
 import { createSeatingAndHologram } from './seat.js';
 
@@ -347,7 +347,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
 
     // ==========================================
     // [เพิ่มใหม่] ภาพนิ่ง (capyou.png) สำหรับแสดงตอนอยู่ในโหมดเลือกที่นั่ง
-    // หมายเหตุ: หากไฟล์เซฟมาเป็น .jpg ให้เปลี่ยนนามสกุลตรงนี้เป็น capyou.jpg ได้เลยครับ
     const capyouTex = textureLoader.load('textures/capyou.png'); 
     capyouTex.colorSpace = THREE.SRGBColorSpace;
     const capyouMesh = new THREE.Mesh(
@@ -608,6 +607,69 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     const targetCamPos = new THREE.Vector3(), targetLookAt = new THREE.Vector3();
     const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2();
 
+    const topCapsule = document.getElementById('top-capsule-menu'); 
+    const prayBtn = document.getElementById('pray-btn');
+    const infoBoardBtn = document.getElementById('info-board-btn');
+    let dharmaBtn = document.getElementById('dharma-btn');
+
+    // ==========================================
+    // เพิ่มใหม่: สร้างปุ่ม "ฟังธรรม" ซ่อนไว้ในแคปซูล
+    // ==========================================
+    if (topCapsule && !dharmaBtn) {
+        dharmaBtn = document.createElement('button');
+        dharmaBtn.id = 'dharma-btn';
+        dharmaBtn.innerHTML = '🎧 ฟังธรรม (กลับที่นั่ง)';
+        dharmaBtn.style.background = 'transparent';
+        dharmaBtn.style.border = 'none';
+        dharmaBtn.style.color = '#4CAF50';
+        dharmaBtn.style.padding = '8px 20px';
+        dharmaBtn.style.fontFamily = "'Sarabun', sans-serif";
+        dharmaBtn.style.fontSize = '15px';
+        dharmaBtn.style.fontWeight = 'bold';
+        dharmaBtn.style.cursor = 'pointer';
+        dharmaBtn.style.transition = 'background 0.3s';
+        dharmaBtn.style.display = 'none'; // ซ่อนไว้ตอนเริ่มต้น
+        
+        dharmaBtn.onmouseover = () => dharmaBtn.style.background = 'rgba(76, 175, 80, 0.2)';
+        dharmaBtn.onmouseout = () => dharmaBtn.style.background = 'transparent';
+
+        topCapsule.appendChild(dharmaBtn);
+
+        // เมื่อกดปุ่ม ฟังธรรม ให้กลับไปนั่งที่เบาะ หรือยืนที่จุดเริ่มต้น
+        dharmaBtn.addEventListener('click', () => {
+            currentOverrideMode = null; 
+            updateVideoAndSchedule();
+            togglePrayLight(false); // ปิดไฟขอขมา
+
+            // คืนค่าปุ่มแคปซูลกลับมาเป็นเหมือนเดิม
+            if (prayBtn) prayBtn.style.display = 'block';
+            if (infoBoardBtn) infoBoardBtn.style.display = 'block';
+            dharmaBtn.style.display = 'none';
+
+            if (mySelectedCushion) {
+                // กลับไปที่เบาะนั่งเดิมที่เคยเลือกไว้
+                const pos = new THREE.Vector3(); 
+                mySelectedCushion.getWorldPosition(pos);
+                targetCamPos.set(pos.x, 1.0, pos.z);
+                
+                const dir = new THREE.Vector3(0, 2.9, -5.5).sub(targetCamPos).normalize();
+                targetLookAt.copy(targetCamPos).add(dir.multiplyScalar(0.01));
+                
+                isSeated = true; isReading = false; isTransitioning = true; controls.enabled = false;
+                
+                document.getElementById('stand-btn').style.display = 'block';
+                document.getElementById('warp-btn').style.display = 'none';
+                
+                currentSeatStatus = `สถานะ: นั่งสมาธิ แถว ${mySelectedCushion.userData.row}, ตัวที่ ${mySelectedCushion.userData.col}`;
+                window.lockedAvatar = { x: pos.x, y: 0, z: pos.z, state: 'SIT' };
+                hologramGroup.visible = false; // ซ่อนโฮโลแกรมเลือกที่นั่งเพื่อไม่ให้บัง
+            } else {
+                // ถ้ายังไม่มีที่นั่ง ให้กลับไปจุดเริ่มต้น (สแตนด์บาย)
+                goBackToStandby();
+            }
+        });
+    }
+
     function goBackToStandby() {
         if (mySelectedCushion) {
             mySelectedCushion.userData.isMine = false; mySelectedCushion.userData.isOccupied = false;
@@ -628,7 +690,13 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         if (currentOverrideMode !== null) {
             currentOverrideMode = null;
             updateVideoAndSchedule();
+            togglePrayLight(false); // ปิดไฟขอขมาเมื่อถอยกลับ
         }
+
+        // คืนปุ่มโหมดปกติ
+        if (prayBtn) prayBtn.style.display = 'block';
+        if (infoBoardBtn) infoBoardBtn.style.display = 'block';
+        if (dharmaBtn) dharmaBtn.style.display = 'none';
 
         const topCapsule = document.getElementById('top-capsule-menu');
         if (topCapsule) topCapsule.style.display = 'flex';
@@ -653,23 +721,25 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         window.lockedAvatar = { x: targetPos.x, y: 0, z: targetPos.z, state: poseState };
     }
 
-    const prayBtn = document.getElementById('pray-btn');
-    const infoBoardBtn = document.getElementById('info-board-btn');
-    const topCapsule = document.getElementById('top-capsule-menu'); 
-
     if (prayBtn) {
         prayBtn.addEventListener('click', () => {
             currentOverrideMode = 'PRAY'; 
             updateVideoAndSchedule();
 
             moveToBoard(
-                new THREE.Vector3(-2.49, 2.20, -1.27), 
-                new THREE.Vector3(-3.00, 2.00, -5.50), 
+                new THREE.Vector3(-2.49, 1.00, -1.27), // พิกัดสำหรับนั่ง
+                new THREE.Vector3(-6.50, 1.50, -5.50), // เล็งไปที่โต๊ะหมู่บูชา
                 "บูชาพระรัตนตรัย",
                 'SIT'
             );
             
-            if (topCapsule) topCapsule.style.display = 'none';
+            // เปลี่ยนเมนูแคปซูลเป็นปุ่ม ฟังธรรม
+            if (prayBtn) prayBtn.style.display = 'none';
+            if (infoBoardBtn) infoBoardBtn.style.display = 'none';
+            if (dharmaBtn) dharmaBtn.style.display = 'block';
+            
+            // เปิดไฟสปอตไลท์ขอขมา
+            togglePrayLight(true);
         });
     }
 
@@ -685,7 +755,10 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 'STAND'
             );
             
-            if (topCapsule) topCapsule.style.display = 'none';
+            // เปลี่ยนเมนูแคปซูลเป็นปุ่ม ฟังธรรม
+            if (prayBtn) prayBtn.style.display = 'none';
+            if (infoBoardBtn) infoBoardBtn.style.display = 'none';
+            if (dharmaBtn) dharmaBtn.style.display = 'block';
         });
     }
 

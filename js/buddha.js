@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 let emberSystem; 
+// เพิ่มตัวแปรเก็บแสงไฟขอขมา
+export let praySpotLight; 
 
 export function loadBuddhaWithEffects(altarGroup) {
     const tableHeight = 2.5; 
@@ -108,6 +110,20 @@ export function loadBuddhaWithEffects(altarGroup) {
         buddhaModel.add(spotLight);
 
         altarGroup.add(buddhaModel);
+
+        // ==========================================
+        // เพิ่มใหม่: สร้าง SpotLight สำหรับฉายแสงตอนขอขมา
+        // ==========================================
+        praySpotLight = new THREE.SpotLight(0xffffff, 0); // เริ่มต้นที่ความสว่าง 0 (ปิดไฟ)
+        praySpotLight.position.set(0, tableHeight + 4.0, 3.0); // ยกสูงขึ้นและถอยออกมาเพื่อให้ส่องครอบคลุม
+        praySpotLight.target = buddhaModel; // เล็งไปที่พระประธาน
+        praySpotLight.angle = Math.PI / 4; // ความกว้างของลำแสง
+        praySpotLight.penumbra = 0.5; // ขอบแสงฟุ้งนุ่มนวล
+        praySpotLight.distance = 15; // ระยะส่องสว่าง
+        praySpotLight.decay = 2; // การดรอปของแสงสมจริง
+        
+        altarGroup.add(praySpotLight);
+        altarGroup.add(praySpotLight.target); // ต้องแอด target เข้ากรุ๊ปด้วยเสมอ
     });
 
     // ==========================================
@@ -213,4 +229,28 @@ export function updateBuddhaEffects() {
         }
         particles.geometry.attributes.position.needsUpdate = true;
     });
+}
+
+// ==========================================
+// เพิ่มใหม่: ฟังก์ชันสำหรับค่อยๆ หรี่/เร่งแสงไฟขอขมา
+// ==========================================
+let prayLightInterval;
+export function togglePrayLight(isOn) {
+    if (!praySpotLight) return;
+    
+    clearInterval(prayLightInterval);
+    
+    // ตั้งค่าเป้าหมายความสว่าง: ถ้าเปิดให้สว่าง 15.0, ถ้าปิดให้เป็น 0
+    const targetIntensity = isOn ? 15.0 : 0.0; 
+    
+    prayLightInterval = setInterval(() => {
+        // ค่อยๆ ปรับความสว่างทีละนิด (Lerp effect)
+        praySpotLight.intensity += (targetIntensity - praySpotLight.intensity) * 0.1;
+        
+        // ถ้าความสว่างใกล้เคียงเป้าหมายแล้ว ให้หยุดลูป
+        if (Math.abs(praySpotLight.intensity - targetIntensity) < 0.1) {
+            praySpotLight.intensity = targetIntensity;
+            clearInterval(prayLightInterval);
+        }
+    }, 30);
 }
