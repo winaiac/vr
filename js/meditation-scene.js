@@ -9,7 +9,8 @@ import { appConfig } from '../config.js';
 import { updateEngagingContext, toggleReactionUI } from './engaging.js';
 import { createMeditatorAvatar } from './avatar.js';
 import { loadBuddhaWithEffects, updateBuddhaEffects } from './buddha.js';
-import { createFireflies, updateFireflies } from './fireflies.js';;
+import { createFireflies, updateFireflies } from './fireflies.js';
+import { createSeatingAndHologram } from './seat.js';
 
 export function setupMeditationScene(renderer, cssRenderer, db, currentUserName) {
     const scene = new THREE.Scene();
@@ -77,7 +78,7 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     controls.rotateSpeed = -1.0;
 
     let currentScheduleStatus = "โหมด: สแตนด์บาย";
-    let currentSeatStatus = "สถานะ: คลิกเลือกเบาะ หรือเลือกเมนูด้านบน";
+    let currentSeatStatus = "สถานะ: ทัชหน้าจอโฮโลแกรมเพื่อเลือกที่นั่ง";
     let currentOverrideMode = null; 
 
     // --- Firebase Logic & Bots ---
@@ -149,24 +150,20 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     const botNamesList = ["กัลยาณมิตรใจดี", "ผู้แสวงบุญ", "คนรักสงบ", "ผู้ใฝ่ธรรม", "ศิษย์ตถาคต", "ผู้เบิกบาน", "ผู้เจริญในธรรม", "คนมีเมตตา"];
 
     function initFirebaseBots() {
-        // อิงตามห้องที่อยู่ปัจจุบัน
         const botsRef = ref(db, `rooms/${myRoomId}/bots`);
 
         get(botsRef).then((snapshot) => {
             if (!snapshot.exists()) {
-                // ถ้ายังไม่มีบอทในห้อง ให้สุ่มเบาะและส่งบอทขึ้น Firebase
                 generateInitialBotsToFirebase();
             }
         });
 
-        // เมื่อมีการแจ้งจาก Firebase ว่ามีบอทเพิ่ม
         onChildAdded(botsRef, (snapshot) => {
             const botId = snapshot.key;
             const data = snapshot.val();
             renderBot(botId, data);
         });
 
-        // เมื่อบอทถูกลบออก
         onChildRemoved(botsRef, (snapshot) => {
             const botId = snapshot.key;
             if (activeBotsInScene[botId]) {
@@ -174,7 +171,9 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 const cushion = cushionsList[data.cushionIndex];
                 if(cushion) {
                     cushion.userData.isOccupied = false;
-                    cushion.material.color.setHex(0x3b2219); // คืนสีเบาะเป็นสีว่าง
+                    cushion.material.color.setHex(0x3b2219); 
+                    // คืนปุ่มโฮโลแกรมเป็นสีเขียวเรืองแสง (ที่นั่งว่าง)
+                    if (cushion.userData.holoBtn) cushion.userData.holoBtn.material.color.setHex(0x00ffcc);
                 }
                 seatingGroup.remove(activeBotsInScene[botId]);
                 delete activeBotsInScene[botId];
@@ -185,12 +184,11 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     }
 
     function generateInitialBotsToFirebase() {
-        const numBots = Math.floor(Math.random() * 4) + 3; // สุ่ม 3-6 ตัวเหมือนเดิม
+        const numBots = Math.floor(Math.random() * 4) + 3; 
         const availableIndices = [...Array(cushionsList.length).keys()];
         
         for (let i = 0; i < numBots; i++) {
             if (availableIndices.length === 0) break;
-            // สุ่มเลขเบาะที่ว่างอยู่
             const cushionIdx = availableIndices.splice(Math.floor(Math.random() * availableIndices.length), 1)[0];
             
             const botId = 'bot_' + i;
@@ -202,7 +200,7 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             const botData = {
                 name: name,
                 colors: colors,
-                cushionIndex: cushionIdx, // ส่งเลขเบาะไปให้ Firebase จำ
+                cushionIndex: cushionIdx,
                 state: 'SIT'
             };
             
@@ -221,17 +219,16 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 cushion.userData.isOccupied = true; 
                 cushion.userData.occupantName = data.name;
                 cushion.material.color.setHex(0x2a1610);
+                // อัปเดตโฮโลแกรมเป็นสีแดง (มีคนนั่งแล้ว)
+                if (cushion.userData.holoBtn) cushion.userData.holoBtn.material.color.setHex(0xff3333);
                 
-                // สร้างอวตารโดยใช้สีเดียวกับที่ดึงมาจาก Firebase
                 const botAvatar = createMeditatorAvatar(data.name, data.colors);
-                // จัดให้นั่งบนเบาะเป๊ะๆ
                 botAvatar.position.set(cushion.position.x, 0.05, cushion.position.z);
                 
                 seatingGroup.add(botAvatar);
                 activeBotsInScene[botId] = botAvatar;
             }
 
-            // ส่งชื่อบอททั้งหมดให้ระบบ Engaging เอาไปสุ่มแชทสาธุ
             const currentBotNames = Object.values(activeBotsInScene).map(b => b.userData.userName);
             updateEngagingContext(myRoomId, currentBotNames);
         }
@@ -279,19 +276,11 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         updateEngagingContext(myRoomId, botNames);
     }
 
-    // --- Cushions ---
-    const cushionGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 32);
-    const seatingGroup = new THREE.Group(); seatingGroup.position.set(0, 0.05, -1.5); scene.add(seatingGroup);
-    const cushionsList = [];
-    for (let r = 0; r < 5; r++) {
-        for (let c = 0; c < 6; c++) {
-            let xPos = (c < 3) ? (c - 3) * 1.2 - 0.5 : (c - 4) * 1.2 + 1.2 + 0.5;
-            const cushion = new THREE.Mesh(cushionGeo, new THREE.MeshStandardMaterial({ color: 0x3b2219 }));
-            cushion.position.set(xPos, 0, r * 1.1);
-            cushion.userData = { row: r + 1, col: c + 1, isOccupied: false, isMine: false };
-            seatingGroup.add(cushion); cushionsList.push(cushion);
-        }
-    }
+    // --- Cushions & Hologram UI (เรียกใช้งานจากไฟล์ seat.js) ---
+    const { seatingGroup, hologramGroup, cushionsList, hologramButtons } = createSeatingAndHologram();
+    scene.add(seatingGroup);
+    scene.add(hologramGroup);
+    
     joinRoom();
 
     // --- 1. ย้ายโต๊ะหมู่บูชาและพระประธานไปทางซ้าย ---
@@ -300,7 +289,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     altarGroup.rotation.y = Math.PI / 6; 
     scene.add(altarGroup);
     
-    // [แก้ไข] ขยายความกว้างโต๊ะ (แกน X เป็น 3.8) และความลึก (แกน Z เป็น 1.8) ให้กว้างสมกับฐานพระ
     const table = new THREE.Mesh(new THREE.BoxGeometry(3.8, 2.5, 1.8), new THREE.MeshStandardMaterial({ color: 0x4a2e18 })); 
     table.position.set(0, 1.25, 0); 
     altarGroup.add(table);
@@ -348,7 +336,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     iframe.frameBorder = "0"; 
     iframe.allowFullscreen = true; 
     
-    // [แก้ไขจุดนี้] เพิ่มการอนุญาตให้เล่นอัตโนมัติ (Autoplay) ผ่าน iframe
     iframe.allow = "autoplay; encrypted-media; fullscreen"; 
     
     iframe.style.borderRadius = "4px"; 
@@ -357,6 +344,19 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     div.appendChild(iframe);
     
     const cssObject = new CSS3DObject(div); cssObject.position.set(0, 0, 0.12); cssObject.scale.set(0.01, 0.01, 0.01); tvGroup.add(cssObject);
+
+    // ==========================================
+    // [เพิ่มใหม่] ภาพนิ่ง (capyou.png) สำหรับแสดงตอนอยู่ในโหมดเลือกที่นั่ง
+    // หมายเหตุ: หากไฟล์เซฟมาเป็น .jpg ให้เปลี่ยนนามสกุลตรงนี้เป็น capyou.jpg ได้เลยครับ
+    const capyouTex = textureLoader.load('textures/capyou.png'); 
+    capyouTex.colorSpace = THREE.SRGBColorSpace;
+    const capyouMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(7.0, 3.9), 
+        new THREE.MeshBasicMaterial({ map: capyouTex })
+    );
+    capyouMesh.position.set(0, 0, 0.12); // วางตำแหน่งทับพอดีกับจอ YouTube
+    tvGroup.add(capyouMesh);
+    // ==========================================
 
     function updateVideoAndSchedule() {
         if (currentOverrideMode === 'PRAY') {
@@ -438,19 +438,14 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     ctx.fillStyle = '#ffffff'; ctx.font = '36px Sarabun, sans-serif'; 
     ctx.fillText('เพื่อให้ท่านได้รับฟังเสียงสวดมนต์ในขณะอยู่ภายในโลกเสมือนจริง', canvas.width / 2, 270);
     
-    // ===========================================
-    // [อัปเดต] เช็คระบบปฏิบัติการว่าเป็น Windows หรือไม่ เพื่อแสดงข้อความที่เหมาะสม
     const isWindows = navigator.userAgent.toLowerCase().includes('windows');
     ctx.fillStyle = '#4CAF50'; ctx.font = 'bold 32px Sarabun, sans-serif'; 
     
     if (isWindows) {
-        // ถ้าเป็น Windows ให้บอกทริคพับจอ
         ctx.fillText('💡 ทริคสำหรับ Windows: สามารถย่อหน้าต่าง (Minimize) เพื่อเป็นโหมดฟังเสียงได้', canvas.width / 2, 330);
     } else {
-        // ถ้าไม่แน่ใจ หรือเป็นมือถือ/แท็บเล็ต/Mac ให้บอกให้เปิดหน้าเว็บทิ้งไว้
         ctx.fillText('💡 คำแนะนำ: กรุณาเปิดหน้าเว็บทิ้งไว้เพื่อการฟังเสียงสวดมนต์อย่างต่อเนื่อง', canvas.width / 2, 330);
     }
-    // ===========================================
     
     ctx.fillStyle = '#00ffcc'; ctx.font = 'bold 42px Sarabun, sans-serif'; 
     ctx.fillText('คำแนะนำขั้นตอนการใช้งาน:', canvas.width / 2, 410);
@@ -486,7 +481,7 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         new THREE.PlaneGeometry(2.5, 3.75), 
         new THREE.MeshBasicMaterial({ 
             map: prTexture, 
-            fog: false // ปิดหมอกไม่ให้บังบอร์ด PR
+            fog: false 
         })
     ); 
     prPlane.position.set(0, 0, 0.06); prGroup.add(prPlane);
@@ -606,7 +601,8 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     const prBackHitbox = new THREE.Mesh(backBtnGeo, hitboxMat); prBackHitbox.position.set(-0.6, -1.575, 0.07); prBackHitbox.userData = { isBackButton: true }; prGroup.add(prBackHitbox);
     const prWarpHitbox = new THREE.Mesh(warpBtnGeo, hitboxMat); prWarpHitbox.position.set(0.575, -1.575, 0.07); prWarpHitbox.userData = { isWarpButton: true }; prGroup.add(prWarpHitbox);
 
-    const interactables = [...cushionsList, prHotspot, prBackHitbox, prWarpHitbox];
+    // นำปุ่มโฮโลแกรมเข้าไปอยู่ในระบบที่สามารถเอาเมาส์คลิก/ทัชได้
+    const interactables = [...cushionsList, ...hologramButtons, prHotspot, prBackHitbox, prWarpHitbox];
 
     let isSeated = false, isReading = false, isTransitioning = false, mySelectedCushion = null;
     const targetCamPos = new THREE.Vector3(), targetLookAt = new THREE.Vector3();
@@ -615,7 +611,10 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     function goBackToStandby() {
         if (mySelectedCushion) {
             mySelectedCushion.userData.isMine = false; mySelectedCushion.userData.isOccupied = false;
-            mySelectedCushion.material.color.setHex(0x3b2219); mySelectedCushion = null;
+            mySelectedCushion.material.color.setHex(0x3b2219); 
+            // ลุกแล้วคืนปุ่มโฮโลแกรมเป็นสีเขียว
+            if (mySelectedCushion.userData.holoBtn) mySelectedCushion.userData.holoBtn.material.color.setHex(0x00ffcc);
+            mySelectedCushion = null;
         }
         document.getElementById('stand-btn').style.display = 'none';
         document.getElementById('warp-btn').style.display = 'block';
@@ -624,7 +623,7 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
 
         isSeated = false; isReading = false; isTransitioning = true; controls.enabled = false;
         targetCamPos.copy(defaultCameraPos); targetLookAt.copy(defaultTargetPos);
-        currentSeatStatus = "สถานะ: คลิกเลือกเบาะ หรือเลือกเมนูด้านบน";
+        currentSeatStatus = "สถานะ: ทัชหน้าจอโฮโลแกรมเพื่อเลือกที่นั่ง";
 
         if (currentOverrideMode !== null) {
             currentOverrideMode = null;
@@ -634,11 +633,11 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         const topCapsule = document.getElementById('top-capsule-menu');
         if (topCapsule) topCapsule.style.display = 'flex';
 
-        // [เพิ่มจุดนี้] ปลดล็อคพิกัดอวตาร ให้กลับมาอิงตามกล้องปกติเวลาเดิน
         window.lockedAvatar = null; 
+        // เรียกจอโฮโลแกรมกลับมาเมื่อลุกยืน
+        hologramGroup.visible = true;
     }
 
-    // [แก้ไขจุดนี้] เพิ่มการรับค่าท่าทาง (poseState) ว่าจะให้นั่งหรือยืน
     function moveToBoard(targetPos, lookAtPos, statusText, poseState = 'STAND') {
         if (!scene.visible || isTransitioning || isSeated || isReading) return;
         targetCamPos.copy(targetPos); targetLookAt.copy(lookAtPos);
@@ -651,11 +650,9 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         
         currentSeatStatus = `สถานะ: ${poseState === 'STAND' ? 'ยืนอ่าน' : 'นั่ง'} (${statusText})`;
 
-        // [เพิ่มจุดนี้] สั่งล็อคพิกัดและท่าทางส่งให้ Firebase ทันทีที่เข้าโหมด
         window.lockedAvatar = { x: targetPos.x, y: 0, z: targetPos.z, state: poseState };
     }
 
-    // --- 3. เพิ่มการเชื่อมต่อปุ่มแคปซูลเมนูด้านบน ---
     const prayBtn = document.getElementById('pray-btn');
     const infoBoardBtn = document.getElementById('info-board-btn');
     const topCapsule = document.getElementById('top-capsule-menu'); 
@@ -665,7 +662,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             currentOverrideMode = 'PRAY'; 
             updateVideoAndSchedule();
 
-            // ส่งคำสั่ง 'SIT' เพื่อให้นั่งขอขมา
             moveToBoard(
                 new THREE.Vector3(-2.49, 2.20, -1.27), 
                 new THREE.Vector3(-3.00, 2.00, -5.50), 
@@ -682,7 +678,6 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
             currentOverrideMode = null; 
             updateVideoAndSchedule();
 
-            // ส่งคำสั่ง 'STAND' เพื่อให้ยืนอ่านบอร์ด
             moveToBoard(
                 new THREE.Vector3(1.67, 2.05, -1.29),  
                 new THREE.Vector3(2.00, 2.00, -5.50),  
@@ -713,13 +708,18 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
 
             if (obj.userData.isHotspot) {
                 const boardType = obj.userData.type === "PR" ? "กระดานประชาสัมพันธ์" : "บอร์ดอื่นๆ";
-                // ดึงพิกัดจากปุ่ม hotspot และล็อคให้เป็นท่ายืน
                 moveToBoard(obj.userData.targetPos, obj.userData.lookAtPos, boardType, 'STAND');
-            } else if (!obj.userData.isOccupied) {
-                obj.userData.isOccupied = true; obj.userData.isMine = true;
-                obj.material.color.setHex(0x00ffcc); mySelectedCushion = obj;
+            } else if (obj.userData.isHologramBtn) {
+                // ผู้ใช้ทัชเลือกที่นั่งจากจอโฮโลแกรม
+                const targetCush = obj.userData.targetCushion;
+                if (targetCush.userData.isOccupied) return; // ที่นั่งไม่ว่าง
                 
-                const pos = new THREE.Vector3(); obj.getWorldPosition(pos);
+                targetCush.userData.isOccupied = true; targetCush.userData.isMine = true;
+                targetCush.material.color.setHex(0x00ffcc); // เบาะจริงสว่าง
+                obj.material.color.setHex(0xffeb3b); // ปุ่มโฮโลแกรมเป็นสีเหลือง (ที่เรานั่ง)
+                mySelectedCushion = targetCush;
+                
+                const pos = new THREE.Vector3(); targetCush.getWorldPosition(pos);
                 targetCamPos.set(pos.x, 1.0, pos.z);
                 
                 const dir = new THREE.Vector3(0, 2.9, -5.5).sub(targetCamPos).normalize();
@@ -730,10 +730,11 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 document.getElementById('stand-btn').style.display = 'block';
                 document.getElementById('warp-btn').style.display = 'none';
                 
-                currentSeatStatus = `สถานะ: นั่งสมาธิ แถว ${obj.userData.row}, ตัวที่ ${obj.userData.col}`;
+                currentSeatStatus = `สถานะ: นั่งสมาธิ แถว ${targetCush.userData.row}, ตัวที่ ${targetCush.userData.col}`;
 
-                // [เพิ่มจุดนี้] ล็อคพิกัดอวตารให้อยู่กับเบาะนั่งอย่างตายตัว
                 window.lockedAvatar = { x: pos.x, y: 0, z: pos.z, state: 'SIT' };
+                // ซ่อนจอโฮโลแกรมเมื่อวาร์ปมานั่งแล้ว จะได้ไม่บังวิว
+                hologramGroup.visible = false;
             }
         }
     });
@@ -805,35 +806,25 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                     controls.minAzimuthAngle = -Infinity; controls.maxAzimuthAngle = Infinity;
                 }
             }
-        } else if (controls.enabled) { 
+       } else if (controls.enabled) { 
             controls.update(); 
             
-            // ==========================================
-            // [อัปเดต] ล็อกขอบเขตมุมกล้องและพิกัดการเดิน (Boundary Clamping)
+            // ล็อกไม่ให้ไปไหน บังคับให้มองจอโฮโลแกรมอย่างเดียว จนกว่าจะเลือกที่นั่ง
+            if (!isSeated && !isReading) {
+                camera.position.set(0, 1.5, 6.0); // ล็อกพิกัดกล้องให้อยู่ตรงกลางเป๊ะ
+                controls.target.set(0, 1.5, 4.0); // ล็อกเป้าสายตาให้จ้องตรงไปที่หน้าจอ (Z=4.0)
+                
+                controls.enableRotate = false; // ปิดการลากเมาส์หมุนจอ หันซ้ายขวาไม่ได้
+                controls.enableZoom = false;   // ปิดการซูมเข้าออก
+                controls.enablePan = false;    // ปิดการคลิกขวาเลื่อนจอ
+            } else {
+                // เมื่อวาร์ปไปนั่ง หรือไปยืนอ่านบอร์ดแล้ว ค่อยคืนค่าให้หันกล้องมองรอบๆ ได้ตามปกติ
+                controls.enableRotate = true;
+            }
             
-            // 1. ล็อกความสูง (แกน Y)
-            // - ป้องกันมุดใต้ดิน (ต่ำสุด 0.5)
-            // - ป้องกันลอยเหนือเศียรพระประธาน (สูงสุด 3.0)
-            if (camera.position.y < 0.5) camera.position.y = 0.5;
-            if (camera.position.y > 3.0) camera.position.y = 3.0;
-
-            // 2. ล็อกระยะการเดินลึกเข้าไปในจอ (แกน Z)
-            // - จอทีวีอยู่แถวๆ Z = -5.5 เราจะบล็อกให้เดินใกล้สุดได้แค่ Z = -4.5 (ไม่ให้ทะลุจอ)
-            // - ถอยหลังสุดได้ถึง Z = 15.0
-            if (camera.position.z < -4.5) camera.position.z = -4.5;
-            if (camera.position.z > 15.0) camera.position.z = 15.0;
-
-            // 3. ล็อกระยะการเดินซ้าย-ขวา (แกน X)
-            // - ไม่ให้ออกนอกลานดิน (ซ้ายสุด -7.5, ขวาสุด 7.5)
-            if (camera.position.x < -7.5) camera.position.x = -7.5;
-            if (camera.position.x > 7.5) camera.position.x = 7.5;
-
-            // 4. ล็อกการเงยหน้า (Polar Angle)
-            // - ไม่ให้ก้มจนเห็นแต่พื้นมากเกินไป และไม่เงยหน้าจนทะลุเพดานป่า
-            // Math.PI / 2 คือระดับสายตาขนานพื้น
-            const minLookUp = (Math.PI / 2) - 0.5; // เงยสุด
-            const maxLookDown = (Math.PI / 2) + 0.3; // ก้มสุด
-            
+            // ล็อกมุมก้ม-เงย (ใช้ได้ทั้งตอนนั่งและตอนยืน)
+            const minLookUp = (Math.PI / 2) - 0.5; 
+            const maxLookDown = (Math.PI / 2) + 0.3; 
             if (controls.getPolarAngle() < minLookUp) {
                 controls.minPolarAngle = minLookUp;
             } else if (controls.getPolarAngle() > maxLookDown) {
@@ -842,19 +833,15 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 controls.minPolarAngle = 0; 
                 controls.maxPolarAngle = Math.PI; 
             }
-            // ==========================================
         }
 
         if (scene.visible) {
             updateBuddhaEffects();
             updateFireflies();
             
-            // ==========================================
-            // [เพิ่มใหม่] สั่งให้อวตารบอททั้งหมดกระพริบตา
             Object.values(activeBotsInScene).forEach(bot => {
                 if (bot.update) bot.update();
             });
-            // ==========================================
         }
 
         if (scene.visible) {
@@ -868,8 +855,20 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
 
             if (tvNormal.dot(viewDir) < 0) {
                 cssObject.visible = false; 
+                capyouMesh.visible = false;
             } else {
-                cssObject.visible = true; 
+                // ==========================================
+                // [อัปเดต] สลับการแสดงผลระหว่าง YouTube และ ภาพนิ่ง
+                // ถ้ายังไม่นั่งและยังไม่ได้อ่านบอร์ด (อยู่โหมดเลือกที่นั่งหน้าโฮโลแกรม)
+                if (!isSeated && !isReading) {
+                    cssObject.visible = false;  // ปิดจอวิดีโอ (ซ่อน iframe)
+                    capyouMesh.visible = true;  // เปิดภาพนิ่งปก
+                } else {
+                    // ถ้านั่งแล้ว หรืออยู่ในโหมดขอขมา/อ่านบอร์ด 
+                    cssObject.visible = true;   // เปิดจอวิดีโอให้เล่น
+                    capyouMesh.visible = false; // ปิดภาพนิ่งปก
+                }
+                // ==========================================
             }
         }
     }

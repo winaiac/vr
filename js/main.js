@@ -19,8 +19,18 @@ const { userId, userName, channelTag } = initIDPS("กัลยาณมิต�
 let currentUserName = userName;
 
 const userProfileBtn = document.getElementById('user-profile');
-// [อัปเดต] คงไว้เฉพาะการใส่ชื่อและไอคอนดินสอ (สไตล์ถูกย้ายไป HTML แล้ว)
-userProfileBtn.innerHTML = `👤 ผู้ใช้งาน: ${currentUserName} <span style="font-size:12px; color:#ff9800;">✏️ แก้ไข</span>`;
+
+// ฟังก์ชันอัปเดตปุ่มโปรไฟล์ตามโหมด (ภพภูมิ = ดูได้แค่ชื่อ, ลานธรรม = มีปุ่มแก้ไข)
+function updateUserProfileBtn(isRealmMode = false) {
+    if (isRealmMode) {
+        userProfileBtn.innerHTML = `👤 ผู้ใช้งาน: ${currentUserName}`;
+        userProfileBtn.style.pointerEvents = 'none'; // กดไม่ได้
+    } else {
+        userProfileBtn.innerHTML = `👤 ผู้ใช้งาน: ${currentUserName} <span style="font-size:12px; color:#ff9800;">✏️ แก้ไข</span>`;
+        userProfileBtn.style.pointerEvents = 'auto'; // กดแก้ชื่อได้ปกติ
+    }
+}
+updateUserProfileBtn(); // เรียกใช้ครั้งแรกตอนโหลดเว็บ
 
 // 2. --- เพิ่มตัวแปรสำหรับจัดการผู้เล่นอื่น ---
 const otherPlayers = {}; 
@@ -42,6 +52,9 @@ const hairColors = [0x111111, 0x2b1d14, 0x4a3123, 0xccaa55, 0x8c3310, 0xdddddd];
 const shirtColors = [0xffffff, 0xffffff, 0xf5f5dc, 0xcce0ff, 0xd4f0d4, 0xffe6e6, 0xdddddd];
 const pantsColors = [0xffffff, 0xffffff, 0x333333, 0x555555, 0x8b5a2b, 0x2c3e50];
 
+// ==========================================
+// จัดการข้อมูลอวตารส่วนตัว (เพิ่มตัวแปรเพศ)
+// ==========================================
 let myAvatarColors = JSON.parse(localStorage.getItem('myAvatarColors'));
 if (!myAvatarColors) {
     myAvatarColors = {
@@ -49,8 +62,14 @@ if (!myAvatarColors) {
         hair: hairColors[Math.floor(Math.random() * hairColors.length)],
         shirt: shirtColors[Math.floor(Math.random() * shirtColors.length)],
         pants: pantsColors[Math.floor(Math.random() * pantsColors.length)],
-        isLongHair: Math.random() > 0.5
+        isLongHair: Math.random() > 0.5,
+        gender: 'M' // กำหนดค่าเริ่มต้นเป็นผู้ชาย
     };
+    localStorage.setItem('myAvatarColors', JSON.stringify(myAvatarColors));
+}
+// ป้องกันกรณีผู้เล่นเก่าที่เคยมี LocalStorage แต่ยังไม่มีตัวแปร gender
+if (!myAvatarColors.gender) {
+    myAvatarColors.gender = 'M';
     localStorage.setItem('myAvatarColors', JSON.stringify(myAvatarColors));
 }
 
@@ -63,11 +82,7 @@ const confirmNameBtn = document.getElementById('confirm-name-btn');
 const cancelNameBtn = document.getElementById('cancel-name-btn');
 const nameModalMsg = document.getElementById('name-modal-msg'); 
 
-const randomAvatarBtn = document.createElement('button');
-randomAvatarBtn.innerHTML = '🎲 สุ่มรูปลักษณ์ใหม่';
-// [อัปเดตใหม่] ลบขอบ (margin) ออก และใช้ flex: 1.5 เพื่อให้ขยายเต็มช่องพอดีกับปุ่มอื่น
-randomAvatarBtn.style.cssText = 'flex: 1.5; background: #e67e22; color: white; border: none; border-radius: 8px; padding: 10px; cursor: pointer; font-family: "Sarabun"; font-weight: bold; margin: 0;';
-confirmNameBtn.parentNode.insertBefore(randomAvatarBtn, confirmNameBtn);
+
 
 let myPreviewAvatar = null; 
 let previewLight = null; 
@@ -100,7 +115,8 @@ function showPreviewAvatar() {
     });
     // ==========================================
     
-    myPreviewAvatar = createMeditatorAvatar(newNameInput.value || currentUserName, myAvatarColors);
+   // ส่ง myAvatarColors.gender ไปเป็นตัวแปรที่ 3
+    myPreviewAvatar = createMeditatorAvatar(newNameInput.value || currentUserName, myAvatarColors, myAvatarColors.gender);
     switchAvatarPosture(myPreviewAvatar, true); 
     
     // [อัปเดตใหม่] ขยายสเกล 2 เท่า และดันพิกัด Y ลงมาที่ -1.3 เพื่อไม่ให้ตัวลอย
@@ -119,9 +135,13 @@ function showPreviewAvatar() {
     // ==========================================
     
     previewLight = new THREE.Group(); 
-    const pLight = new THREE.PointLight(0xffffff, 5.0, 5); 
-    pLight.position.set(0, 0.2, -0.8); 
-    const aLight = new THREE.AmbientLight(0xffffff, 1.5); 
+    
+    // 1. แสงหลัก (Key Light): ลดความจ้าลง (จาก 5.0 เหลือ 2.5) และย้ายไปส่องเฉียงๆ จากด้านขวาบน
+    const pLight = new THREE.PointLight(0xffffff, 2.5, 10); 
+    pLight.position.set(1.5, 0.8, -0.2); 
+    
+    // 2. แสงลบเงา (Ambient Light): ลดลงครึ่งหนึ่ง (จาก 1.5 เหลือ 0.7) เพื่อให้เห็นมิติของจมูกและรูปหน้า
+    const aLight = new THREE.AmbientLight(0xffffff, 0.7);
     
     // ==========================================
     // [เพิ่มใหม่] 2. จัดแสง Rim Light ส่องมาจากด้านหลังให้ตัวละครดูมีมิติ 3D (ซ้ายส้ม ขวาฟ้า)
@@ -283,19 +303,32 @@ window.addEventListener('pointerup', () => {
     isDraggingAvatar = false;
 });
 
-randomAvatarBtn.addEventListener('click', () => {
+// --- ฟังก์ชันช่วยเหลือสำหรับสุ่มรูปลักษณ์ตามเพศ ---
+function generateRandomAppearance(targetGender) {
     myAvatarColors = {
         skin: skinPalettes[Math.floor(Math.random() * skinPalettes.length)],
         hair: hairColors[Math.floor(Math.random() * hairColors.length)],
         shirt: shirtColors[Math.floor(Math.random() * shirtColors.length)],
         pants: pantsColors[Math.floor(Math.random() * pantsColors.length)],
-        isLongHair: Math.random() > 0.5
+        isLongHair: targetGender === 'F' ? (Math.random() > 0.3) : (Math.random() > 0.7), // ผู้หญิงมีโอกาสผมยาวเยอะกว่า
+        gender: targetGender
     };
     localStorage.setItem('myAvatarColors', JSON.stringify(myAvatarColors));
     
     showPreviewAvatar(); 
     updateMyPositionToFirebase(); 
-});
+}
+
+// ผูกปุ่มจากหน้า index.html ที่เราสร้างไว้ในขั้นตอนก่อนหน้า
+const btnGenMale = document.getElementById('btn-gen-male');
+if (btnGenMale) {
+    btnGenMale.addEventListener('click', () => generateRandomAppearance('M'));
+}
+
+const btnGenFemale = document.getElementById('btn-gen-female');
+if (btnGenFemale) {
+    btnGenFemale.addEventListener('click', () => generateRandomAppearance('F'));
+}
 
 newNameInput.addEventListener('input', () => {
     if(myPreviewAvatar) showPreviewAvatar();
@@ -317,10 +350,10 @@ confirmNameBtn.addEventListener('click', () => {
 
     const result = changeUserName(newName, channelTag);
     
-    if (result.success) {
+   if (result.success) {
         currentUserName = result.newName;
-        // [แก้ไข] อัปเดตชื่อใหม่โดยรักษาไอคอนดินสอไว้
-        userProfileBtn.innerHTML = `👤 ผู้ใช้งาน: ${currentUserName} <span style="font-size:12px; color:#ff9800;">✏️ แก้ไข</span>`;
+        // เรียกใช้ฟังก์ชันนี้แทน เพื่อให้ระบบเช็คเองว่าอยู่ในโหมดไหน และควรใส่ไอคอนดินสอหรือไม่
+        updateUserProfileBtn(activeModule === realmModule);
         
         nameModalMsg.innerText = result.message; 
         nameModalMsg.style.color = "#00ffcc";
@@ -507,11 +540,13 @@ function switchScene(targetMode) {
             document.getElementById('warp-btn').style.display = 'none';
             document.getElementById('back-to-meditation-btn').style.display = 'block';
             
+            // ซ่อนปุ่มบน (ขอขมา/บอร์ด) และปุ่มแก้ไขชื่อ
+            if (topCapsule) topCapsule.style.display = 'none';
+            updateUserProfileBtn(true);
+            
             window.currentZoneName = "โถงไตรภพ"; 
             myIsOrbMode = true; 
             myAvatarState = 'STAND';
-
-            if (topCapsule) topCapsule.style.display = 'none';
             
             if (meditationModule.onExitScene) meditationModule.onExitScene();
             if (realmModule.onEnterScene) realmModule.onEnterScene();
@@ -525,11 +560,13 @@ function switchScene(targetMode) {
             document.getElementById('warp-btn').style.display = 'block';
             document.getElementById('back-to-meditation-btn').style.display = 'none';
             
+            // แสดงปุ่มบน (ขอขมา/บอร์ด) และปุ่มแก้ไขชื่อ กลับมาตามปกติ
+            if (topCapsule) topCapsule.style.display = 'flex';
+            updateUserProfileBtn(false);
+            
             window.currentZoneName = "ลานธรรม"; 
             myIsOrbMode = false; 
             myAvatarState = 'SIT'; 
-
-            if (topCapsule) topCapsule.style.display = 'flex';
             
             if (realmModule.onExitScene) realmModule.onExitScene();
             if (meditationModule.onEnterScene) meditationModule.onEnterScene();

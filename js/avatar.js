@@ -3,7 +3,8 @@ import * as THREE from 'three';
 // ==========================================
 // 1. ฟังก์ชันสร้างข้อความบน Canvas (เสื้อ/ดวงจิต)
 // ==========================================
-function createNameTexture(nameText, baseColor, isOrb = false) {
+// [แก้ไข] เพิ่มตัวแปร gender มารับค่าเพศ
+function createNameTexture(nameText, baseColor, isOrb = false, gender = 'M') {
     const canvas = document.createElement('canvas');
     canvas.width = 1024; 
     canvas.height = 256;
@@ -41,29 +42,41 @@ function createNameTexture(nameText, baseColor, isOrb = false) {
         frontText = nameText.substring(0, 5).trim();
     }
     
+    // === [CONFIG: ตำแหน่ง Y ของสกรีนเสื้อ] ===
+    const yFrontM = 128;
+    const yBackM = 128;
+    const yFrontF = 180;
+    const yBackF = 45;
+    // =====================================
+
+    const curFrontY = (gender === 'F') ? yFrontF : yFrontM;
+    const curBackY = (gender === 'F') ? yBackF : yBackM;
+    const curBackLine1 = curBackY - 28; 
+    const curBackLine2 = curBackY + 37;
+
     ctx.font = 'bold 80px Sarabun, sans-serif'; 
-    if (!isOrb) ctx.strokeText(frontText, 256, 128); 
-    ctx.fillText(frontText, 256, 128); 
+    if (!isOrb) ctx.strokeText(frontText, 256, curFrontY); 
+    ctx.fillText(frontText, 256, curFrontY); 
 
     if (nameText.startsWith("กัลยาณมิตร")) {
         const line1 = "กัลยาณมิตร";
         const line2 = nameText.substring(10);
         
         ctx.font = 'bold 50px Sarabun, sans-serif';
-        if (!isOrb) ctx.strokeText(line1, 768, 100);
-        ctx.fillText(line1, 768, 100); 
+        if (!isOrb) ctx.strokeText(line1, 768, curBackLine1);
+        ctx.fillText(line1, 768, curBackLine1); 
         
         ctx.font = 'bold 60px Sarabun, sans-serif';
-        if (!isOrb) ctx.strokeText(line2, 768, 165);
-        ctx.fillText(line2, 768, 165); 
+        if (!isOrb) ctx.strokeText(line2, 768, curBackLine2);
+        ctx.fillText(line2, 768, curBackLine2); 
     } else {
         let fontSize = 70;
         if (nameText.length > 8) fontSize = 55;
         if (nameText.length > 12) fontSize = 45;
         
         ctx.font = `bold ${fontSize}px Sarabun, sans-serif`;
-        if (!isOrb) ctx.strokeText(nameText, 768, 128);
-        ctx.fillText(nameText, 768, 128); 
+        if (!isOrb) ctx.strokeText(nameText, 768, curBackY);
+        ctx.fillText(nameText, 768, curBackY); 
     }
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -74,7 +87,7 @@ function createNameTexture(nameText, baseColor, isOrb = false) {
 // ==========================================
 // 2. ฟังก์ชันหลักสร้างอวตาร
 // ==========================================
-export function createMeditatorAvatar(userName = "กัลยาณมิตร", customColors = null) {
+export function createMeditatorAvatar(userName = "กัลยาณมิตร", customColors = null, gender = 'M') {
     const group = new THREE.Group();
     group.userData = { 
         state: 'SIT', 
@@ -111,7 +124,7 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
     group.userData.pantsMat = new THREE.MeshStandardMaterial({ color: myPants, emissive: myPants, emissiveIntensity: 0.1, roughness: 0.9 });
     group.userData.shirtMatPlain = new THREE.MeshStandardMaterial({ color: myShirt, emissive: myShirt, emissiveIntensity: 0.15, roughness: 0.8 });
 
-    const nameTexture = createNameTexture(userName, myShirt);
+    const nameTexture = createNameTexture(userName, myShirt, false, gender);
     group.userData.shirtMatNamed = new THREE.MeshStandardMaterial({ 
         color: myShirt, emissive: myShirt, emissiveIntensity: 0.15, roughness: 0.8, map: nameTexture 
     });
@@ -146,9 +159,19 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
     lowerBodyStand.name = "lowerBodyStand";
     lowerBodyStand.visible = false; 
 
-    const pelvisStand = new THREE.Mesh(new THREE.SphereGeometry(0.18, 32, 16), group.userData.pantsMat);
-    pelvisStand.scale.set(1.1, 0.5, 0.9); 
-    pelvisStand.position.set(0, 0.28, 0); 
+    // === [CONFIG: สะโพก ท่ายืน] ===
+    const pelvisStandTZ = -0.06; 
+    const pelvisStandPZ = 0.02;  
+    const pelvisStandSZ = 0.65; // [เพิ่มใหม่] ความหนา (Scale Z) ยิ่งค่าน้อยยิ่งแบน
+    // =====================================
+
+    const pelvisStandGeo = new THREE.SphereGeometry(0.18, 32, 16);
+    pelvisStandGeo.translate(0, 0, pelvisStandTZ);
+    
+    const pelvisStand = new THREE.Mesh(pelvisStandGeo, group.userData.pantsMat);
+    // ผูกค่าความหนาเข้าไปที่แกน Z
+    pelvisStand.scale.set(1.1, 0.5, pelvisStandSZ); 
+    pelvisStand.position.set(0, 0.28, pelvisStandPZ);
     lowerBodyStand.add(pelvisStand);
 
     const leftLeg = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.3, 16, 16), group.userData.pantsMat);
@@ -166,68 +189,104 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
     upperBodyGroup.name = "upperBodyGroup";
     humanBodyGroup.add(upperBodyGroup);
 
-    const torsoGeo = new THREE.CylinderGeometry(0.12, 0.16, 0.30, 32);
+    // กำหนดสัดส่วนตามเพศ (ชาย / หญิง)
+    const isFemale = (gender === 'F');
+    const shoulderWidth = isFemale ? 0.14 : 0.19; // บ่าหญิงแคบลงให้สมส่วน
+    const waistWidth = isFemale ? 0.11 : 0.15;    
+    
+    // ขยับแขนให้ชิดลำตัวมากขึ้น (ให้ลูกตุ้มไหล่ซ้อนทับขอบเสื้อพอดี)
+    const armOffsetX = isFemale ? 0.145 : 0.195;    
+    // ลดขนาดลูกตุ้มหัวไหล่ให้เนียนไปกับท่อนแขน (ท่อนแขนรัศมี 0.04)
+    const shoulderRadius = isFemale ? 0.042 : 0.048; 
+
+    // 1. ปรับรูปทรงลำตัว
+    const torsoGeo = new THREE.CylinderGeometry(shoulderWidth, waistWidth, 0.30, 32);
     const uvs = torsoGeo.attributes.uv.array;
-    for ( let i = 0; i < uvs.length; i += 2 ) {
-        uvs[ i ] = ( uvs[ i ] + 0.25 ) % 1; 
-    }
+    for ( let i = 0; i < uvs.length; i += 2 ) { uvs[ i ] = ( uvs[ i ] + 0.25 ) % 1; }
+    
     const torso = new THREE.Mesh(torsoGeo, group.userData.shirtMatNamed);
-    torso.position.set(0, 0.31, 0);
+    torso.position.set(0, 0.31, 0); 
     torso.rotation.y = Math.PI; 
+    torso.scale.set(1.0, 1.0, 0.65); 
     upperBodyGroup.add(torso);
+
+    // 2. เติมหน้าอกหญิง (ยกสูงขึ้น กดให้แบนชิดตัว และคว่ำลงให้เป็นธรรมชาติ)
+    if (isFemale) {
+        const breastGeo = new THREE.SphereGeometry(0.05, 32, 32);
+        
+        // เต้าซ้าย
+        const leftBreast = new THREE.Mesh(breastGeo, group.userData.shirtMatPlain);
+        leftBreast.position.set(-0.048, 0.32, 0.075); // ยกสูงขึ้น (Y=0.32) และดันชิดตัว (Z=0.075)
+        leftBreast.scale.set(1.0, 1.1, 0.20); // บีบแกน Z ให้แบนลงกว่าเดิมมาก (0.20) เพื่อให้แนบไปกับเสื้อ
+        leftBreast.rotation.x = 0.15; // เปลี่ยนค่าเป็นบวก เพื่อให้ทรงลาดลงชี้ลงล่างตามแรงโน้มถ่วง (ไม่แหงนขึ้น)
+        leftBreast.rotation.y = -0.05; 
+        leftBreast.rotation.z = 0.1;
+        upperBodyGroup.add(leftBreast);
+
+        // เต้าขวา
+        const rightBreast = new THREE.Mesh(breastGeo, group.userData.shirtMatPlain);
+        rightBreast.position.set(0.048, 0.32, 0.075);
+        rightBreast.scale.set(1.0, 1.1, 0.20);
+        rightBreast.rotation.x = 0.15; 
+        rightBreast.rotation.y = 0.05;
+        rightBreast.rotation.z = -0.1;
+        upperBodyGroup.add(rightBreast);
+    }
 
     // --- แขน ---
     const armsGroup = new THREE.Group();
     armsGroup.name = "armsGroup";
     upperBodyGroup.add(armsGroup);
 
-    const leftShoulder = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 16), group.userData.shirtMatPlain);
-    leftShoulder.position.set(-0.16, 0.40, 0);
+    // ลูกตุ้มหัวไหล่เล็กลง และแนบชิดตัวมากขึ้น
+    const leftShoulder = new THREE.Mesh(new THREE.SphereGeometry(shoulderRadius, 16, 16), group.userData.shirtMatPlain);
+    leftShoulder.position.set(-armOffsetX, 0.40, 0);
     armsGroup.add(leftShoulder);
     
-    const rightShoulder = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 16), group.userData.shirtMatPlain);
-    rightShoulder.position.set(0.16, 0.40, 0);
+    const rightShoulder = new THREE.Mesh(new THREE.SphereGeometry(shoulderRadius, 16, 16), group.userData.shirtMatPlain);
+    rightShoulder.position.set(armOffsetX, 0.40, 0);
     armsGroup.add(rightShoulder);
 
     const leftArmFull = new THREE.Group();
     leftArmFull.name = "leftArmFull";
-    leftArmFull.position.set(-0.16, 0.40, 0); 
+    leftArmFull.position.set(-armOffsetX, 0.40, 0); 
     armsGroup.add(leftArmFull);
 
-    const leftUpperArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.15, 8, 16), group.userData.shirtMatPlain);
-    leftUpperArm.position.set(0, -0.09, 0);
+    const leftUpperArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.16, 8, 16), group.userData.shirtMatPlain);
+    leftUpperArm.position.set(0, -0.10, 0);
     leftArmFull.add(leftUpperArm);
 
-    const leftLowerArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.15, 8, 16), group.userData.skinMat);
-    leftLowerArm.position.set(0, -0.24, 0); 
+    const leftLowerArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.16, 8, 16), group.userData.skinMat);
+    leftLowerArm.position.set(0, -0.26, 0); 
     leftArmFull.add(leftLowerArm);
 
     const leftHand = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 16), group.userData.skinMat); 
     leftHand.scale.set(1.0, 1.2, 0.5); 
-    leftHand.position.set(0, -0.34, 0); 
+    leftHand.position.set(0, -0.37, 0); 
     leftArmFull.add(leftHand);
 
     const rightArmFull = new THREE.Group();
     rightArmFull.name = "rightArmFull";
-    rightArmFull.position.set(0.16, 0.40, 0); 
+    rightArmFull.position.set(armOffsetX, 0.40, 0); 
     armsGroup.add(rightArmFull);
 
-    const rightUpperArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.15, 8, 16), group.userData.shirtMatPlain);
-    rightUpperArm.position.set(0, -0.09, 0);
+    const rightUpperArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.16, 8, 16), group.userData.shirtMatPlain);
+    rightUpperArm.position.set(0, -0.10, 0);
     rightArmFull.add(rightUpperArm);
 
-    const rightLowerArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.15, 8, 16), group.userData.skinMat);
-    rightLowerArm.position.set(0, -0.24, 0);
+    const rightLowerArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.16, 8, 16), group.userData.skinMat);
+    rightLowerArm.position.set(0, -0.26, 0);
     rightArmFull.add(rightLowerArm);
 
     const rightHand = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 16), group.userData.skinMat); 
     rightHand.scale.set(1.0, 1.2, 0.5); 
-    rightHand.position.set(0, -0.34, 0);
+    rightHand.position.set(0, -0.37, 0);
     rightArmFull.add(rightHand);
 
     setArmPostureSit(leftArmFull, rightArmFull);
 
     // --- หัว ---
+    // โหลดคอและหัวกลับมาที่ระดับความสูงเดิมเป๊ะๆ
     const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.06, 16), group.userData.skinMat);
     neck.position.set(0, 0.48, 0);
     upperBodyGroup.add(neck);
@@ -237,24 +296,45 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
     headGroup.position.set(0, 0.58, 0);
     upperBodyGroup.add(headGroup);
 
+    // เติมลูกกลมๆ สำหรับผิวหน้ากลับเข้าไป
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 32, 32), group.userData.skinMat);
     headGroup.add(head);
 
     // ==========================================
-    // [อัปเดต] ดวงตาแบบมีม่านตาสีสัน (แก้ระยะ Z ป้องกันตาจม 100%)
-    const scleraMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 }); 
-    const pupilMat = new THREE.MeshBasicMaterial({ color: 0x111111 }); 
-    const catchlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); 
+    // [อัปเดต] ดวงตาแบบสะท้อนแสงจริง (Real-time Reflection)
+    
+    // ตาขาว: ปรับให้มีความชุ่มชื้น สะท้อนแสงได้ดี
+    const scleraMat = new THREE.MeshPhysicalMaterial({ 
+        color: 0xf5f5f5, 
+        roughness: 0.1, 
+        metalness: 0.1,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1
+    }); 
+    
+    // ตาดำ: ดำสนิทและสะท้อนแสงคมกริบ
+    const pupilMat = new THREE.MeshPhysicalMaterial({ 
+        color: 0x111111,
+        roughness: 0.0,
+        metalness: 0.2,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.0
+    }); 
 
-    // สุ่มสีม่านตา (ฟ้า, เขียว, น้ำตาล)
+    // สุ่มสีม่านตา
     const eyeColors = [0x2c6b9e, 0x4a7c59, 0x5c3a21]; 
     const myEyeColor = eyeColors[Math.floor(Math.random() * eyeColors.length)];
-    const irisMat = new THREE.MeshBasicMaterial({ color: myEyeColor });
+    const irisMat = new THREE.MeshPhysicalMaterial({ 
+        color: myEyeColor,
+        roughness: 0.2,
+        metalness: 0.1,
+        clearcoat: 0.8,
+        clearcoatRoughness: 0.1
+    });
 
     const scleraGeo = new THREE.SphereGeometry(0.012, 16, 16);    
     const irisGeo = new THREE.SphereGeometry(0.008, 16, 16);     
     const pupilGeo = new THREE.SphereGeometry(0.005, 16, 16);    
-    const catchlightGeo = new THREE.SphereGeometry(0.0015, 8, 8); 
 
     function createDetailedEye(name, posX, rotY) {
         const eyeGroup = new THREE.Group();
@@ -262,29 +342,23 @@ export function createMeditatorAvatar(userName = "กัลยาณมิตร
         
         eyeGroup.position.set(posX, 0.01, 0.103); 
         eyeGroup.rotation.y = rotY;
-        eyeGroup.scale.set(1.2, 1.0, 0.15); 
+        eyeGroup.scale.set(2, 1.0, 0.15); 
 
-        // 1. ตาขาว (จุดสูงสุดของความโค้งจะอยู่ที่ Z = 0.012)
+        // 1. ตาขาว 
         const sclera = new THREE.Mesh(scleraGeo, scleraMat);
         eyeGroup.add(sclera);
 
-        // 2. ม่านตาสี (ดัน Z ออกมาที่ 0.011 เพื่อให้ทะลุผิวตาขาวขึ้นมา)
+        // 2. ม่านตาสี 
         const iris = new THREE.Mesh(irisGeo, irisMat);
         iris.position.set(0, 0, 0.011);
         iris.scale.set(1, 1, 0.3); 
         eyeGroup.add(iris);
 
-        // 3. ตาดำ (ดัน Z ออกมาที่ 0.012 เพื่อให้ทับบนม่านตาอีกชั้น)
+        // 3. ตาดำ 
         const pupil = new THREE.Mesh(pupilGeo, pupilMat);
         pupil.position.set(0, 0, 0.012); 
         pupil.scale.set(1, 1, 0.3); 
         eyeGroup.add(pupil);
-
-        // 4. ประกายตา (ดัน Z ออกมาที่ 0.013 ให้ลอยอยู่หน้าสุด)
-        const catchlight = new THREE.Mesh(catchlightGeo, catchlightMat);
-        catchlight.position.set(-0.003, 0.003, 0.013); 
-        catchlight.scale.set(1, 1, 0.5);
-        eyeGroup.add(catchlight);
 
         return eyeGroup;
     }

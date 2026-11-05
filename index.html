@@ -522,11 +522,23 @@
 
             <input type="text" id="new-name-input" maxlength="15" placeholder="กรอกชื่อใหม่..."
                 style="width: 85%; padding: 10px; border-radius: 8px; border: 1px solid #ff9800; background: #111; color: #00ffcc; font-family: 'Sarabun', sans-serif; font-size: 16px; margin-bottom: 15px; text-align: center; outline: none;">
+
             <div style="display: flex; justify-content: space-between; gap: 10px;">
                 <button id="cancel-name-btn"
                     style="flex: 1; padding: 10px; border-radius: 8px; border: none; background: #555; color: white; font-family: 'Sarabun', sans-serif; cursor: pointer;">ยกเลิก</button>
+
+                <!-- กลุ่มปุ่มสุ่มชาย/หญิง แบบติดกัน -->
+                <div style="flex: 1.5; display: flex; gap: 2px;">
+                    <button id="btn-gen-male"
+                        style="flex: 1; background: linear-gradient(135deg, #ff9800, #e65100); color: white; border: none; padding: 10px; border-radius: 8px 0 0 8px; cursor: pointer; font-family: 'Sarabun', sans-serif; font-size: 13px; font-weight: bold;"
+                        title="สุ่มรูปลักษณ์ชาย">👨 สุ่ม</button>
+                    <button id="btn-gen-female"
+                        style="flex: 1; background: linear-gradient(135deg, #e91e63, #c2185b); color: white; border: none; padding: 10px; border-radius: 0 8px 8px 0; cursor: pointer; font-family: 'Sarabun', sans-serif; font-size: 13px; font-weight: bold;"
+                        title="สุ่มรูปลักษณ์หญิง">👩 สุ่ม</button>
+                </div>
+
                 <button id="confirm-name-btn"
-                    style="flex: 1; padding: 10px; border-radius: 8px; border: none; background: #ff9800; color: white; font-family: 'Sarabun', sans-serif; font-weight: bold; cursor: pointer;">บันทึกชื่อ</button>
+                    style="flex: 1; padding: 10px; border-radius: 8px; border: none; background: #ff9800; color: white; font-family: 'Sarabun', sans-serif; font-weight: bold; cursor: pointer;">บันทึก</button>
             </div>
         </div>
     </div>
