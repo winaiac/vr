@@ -5,6 +5,7 @@ import { ref, get, update, onValue, onDisconnect, increment, set, onChildAdded, 
 import { appConfig } from '../config.js';
 import { updateEngagingContext, toggleReactionUI } from './engaging.js';
 import { createMeditatorAvatar } from './avatar.js';
+import { createNakee, defaultBodyMat, defaultBellyMat } from './nakee.js';
 import { loadBuddhaWithEffects, updateBuddhaEffects, togglePrayLight } from './buddha.js';
 import { createFireflies, updateFireflies } from './fireflies.js';
 import { createSeatingAndHologram } from './seat.js';
@@ -537,6 +538,61 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     btnPR.position.set(5.5, 0.5, -4.5); btnPR.rotation.y = -Math.PI / 6;
     btnPR.userData = { isPRBtn: true }; btnGroup.add(btnPR);
 
+    // 🐉 สร้างอาเรย์เก็บแก๊งรปภ. พญานาคน้อย
+    const nakeeGuards = [];
+
+    // ตัวที่ 1: เฝ้าบอร์ดประชาสัมพันธ์ (น้องพิ๊งกี้ - โทนสีชมพู)
+    const guardPR = createNakee("น้องพิ๊งกี้");
+    // ขยับออกด้านข้างและถอยหลังเพื่อหลบปุ่มและบอร์ด
+    guardPR.position.set(9.8, 0, -3.5); 
+    guardPR.rotation.y = -Math.PI / 4;  
+    
+    // เปลี่ยนเป็นสีพิ๊งกี้ พร้อมเรืองแสงสู้ความมืด (Emissive)
+    const pinkyBody = defaultBodyMat.clone(); 
+    pinkyBody.color.setHex(0xff99a8);
+    pinkyBody.emissive.setHex(0xff99a8); // 🔴 เรืองแสงสีชมพู
+    pinkyBody.emissiveIntensity = 0.4;   // 🔴 ปรับระดับความสว่างในที่มืด
+
+    const pinkyBelly = defaultBellyMat.clone(); 
+    pinkyBelly.color.setHex(0xffe6e6);
+    pinkyBelly.emissive.setHex(0xffe6e6);
+    pinkyBelly.emissiveIntensity = 0.4;
+
+    guardPR.traverse(child => {
+        if (child.isMesh) {
+            if (child.material === defaultBodyMat) child.material = pinkyBody;
+            if (child.material === defaultBellyMat) child.material = pinkyBelly;
+        }
+    });
+    scene.add(guardPR);
+    nakeeGuards.push(guardPR);
+
+    // ตัวที่ 2: เฝ้าโต๊ะหมู่บูชา (น้องสกาย - โทนสีฟ้า)
+    const guardAltar = createNakee("น้องสกาย");
+    // ขยับออกด้านซ้ายและถอยหลังเพื่อหลบโต๊ะพระและปุ่ม
+    guardAltar.position.set(-9.8, 0, -3.5); 
+    guardAltar.rotation.y = Math.PI / 4;
+    
+    // เปลี่ยนเป็นสีสกาย (ฟ้า) พร้อมเรืองแสงสู้ความมืด
+    const skyBody = defaultBodyMat.clone(); 
+    skyBody.color.setHex(0x87cefa);
+    skyBody.emissive.setHex(0x87cefa); // 🔴 เรืองแสงสีฟ้า
+    skyBody.emissiveIntensity = 0.4;
+
+    const skyBelly = defaultBellyMat.clone(); 
+    skyBelly.color.setHex(0xf0f8ff);
+    skyBelly.emissive.setHex(0xf0f8ff);
+    skyBelly.emissiveIntensity = 0.4;
+
+    guardAltar.traverse(child => {
+        if (child.isMesh) {
+            if (child.material === defaultBodyMat) child.material = skyBody;
+            if (child.material === defaultBellyMat) child.material = skyBelly;
+        }
+    });
+    scene.add(guardAltar);
+    nakeeGuards.push(guardAltar);
+
     const tvControlGroup = new THREE.Group();
     tvControlGroup.position.set(0, -2.4, 0.15); 
     tvControlGroup.visible = false; 
@@ -729,6 +785,15 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     }
 
     function update() {
+
+        const time = performance.now() * 0.001;
+        const now = Date.now();
+
+        // 🔴 สั่งให้น้องๆ พญานาคอัปเดตการขยับและกระพริบตา
+        nakeeGuards.forEach(naga => {
+            if (naga.update) naga.update(time, now);
+        });
+
         // 🔴 สั่งให้ควันเคลื่อนที่เอื่อยๆ ตลอดเวลา
         if (window.groundFogMat) {
             window.groundFogMat.uniforms.time.value += 0.015;
