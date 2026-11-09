@@ -6,14 +6,10 @@ import { getDatabase } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-
 import { generateViralShareText } from './viral-share.js';
 import { setupMeditationScene } from './meditation-scene.js';
 import { createMeditatorAvatar, switchAvatarPosture, switchAvatarToOrb } from './avatar.js';
-
 import { ref, set, get, update, onValue, increment, onChildAdded, onChildChanged, onChildRemoved } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-database.js";
-
 import { setupRealmScene } from './realm-scene.js';
 import { initEngagingSystem, updateChatUserName } from './engaging.js';
 import { loadMyAvatarColors, generateRandomColors, updateSharePreview, initShareSystem } from './setting.js';
-
-// 1. User & Firebase Setup
 import { initIDPS, changeUserName } from './idps.js';
 
 const { userId, userName, channelTag } = initIDPS("กัลยาณมิตร");
@@ -21,7 +17,7 @@ let currentUserName = userName;
 
 // 🔴 อัปเดตชื่อ และแต้มบุญ บนปุ่มโปรไฟล์หลัก
 function updateUserProfileBtn(isRealmMode = false) {
-    const userProfileBtn = document.getElementById('user-profile-btn'); // 🔴 เปลี่ยน ID เป็น user-profile-btn
+    const userProfileBtn = document.getElementById('user-profile-btn'); 
     const nameSpan = document.getElementById('nav-user-name');
     const settingsIcon = document.getElementById('nav-settings-icon');
 
@@ -60,9 +56,8 @@ let myAvatarColors = loadMyAvatarColors();
 
 const nameModal = document.getElementById('name-change-modal');
 const newNameInput = document.getElementById('new-name-input');
-const confirmNameBtn = document.getElementById('confirm-name-btn');
 const cancelNameBtn = document.getElementById('cancel-name-btn');
-const nameModalMsg = document.getElementById('name-modal-msg'); 
+const nameModalMsg = document.getElementById('name-modal-msg');
 
 // ==========================================
 // 🔴 เตรียมความพร้อมสำหรับฉากตั้งค่า (Preview Scene)
@@ -251,39 +246,42 @@ const btnGenFemale = document.getElementById('btn-gen-female');
 if (btnGenFemale) btnGenFemale.addEventListener('click', () => generateRandomAppearance('F'));
 
 cancelNameBtn.addEventListener('click', () => {
-    hidePreviewAvatar(); 
-});
-
-confirmNameBtn.addEventListener('click', () => {
     const newName = newNameInput.value.trim();
-    if (!newName) {
-        nameModalMsg.innerText = "⚠️ กรุณากรอกชื่อก่อนกดบันทึกครับ";
-        nameModalMsg.style.color = "#ff5252";
-        nameModalMsg.style.display = "block";
-        return;
-    }
-
-    const result = changeUserName(newName, channelTag);
+    const rawCurrentName = currentUserName.replace(channelTag, '');
     
-   if (result.success) {
-        currentUserName = result.newName;
-        updateUserProfileBtn(activeModule === realmModule);
+    // 🔴 1. เช็คว่ามีการพิมพ์ชื่อใหม่ และไม่ซ้ำกับชื่อเดิมหรือไม่
+    if (newName && newName !== rawCurrentName) {
+        // ดำเนินการบันทึกชื่อใหม่
+        const result = changeUserName(newName, channelTag);
         
-        nameModalMsg.innerText = result.message; 
-        nameModalMsg.style.color = "#00ffcc";
-        nameModalMsg.style.display = "block";
-        localStorage.setItem('app_last_name_change_time', Date.now());
-        
-        updateMyPositionToFirebase(); 
-        updateChatUserName(currentUserName); 
-        
-        setTimeout(() => {
-            hidePreviewAvatar(); 
-        }, 1500);
+        if (result.success) {
+            currentUserName = result.newName;
+            updateUserProfileBtn(activeModule === realmModule);
+            
+            // แสดงข้อความสำเร็จสีเขียว
+            nameModalMsg.innerText = result.message; 
+            nameModalMsg.style.color = "#00ffcc";
+            nameModalMsg.style.display = "block";
+            
+            // อัปเดตเวลาล่าสุด ป้องกันการสแปมเปลี่ยนชื่อ
+            localStorage.setItem('app_last_name_change_time', Date.now());
+            
+            updateMyPositionToFirebase(); 
+            updateChatUserName(currentUserName); 
+            
+            // หน่วงเวลา 1.5 วินาทีให้ผู้ใช้เห็นข้อความสำเร็จ ก่อนปิดหน้าจอ
+            setTimeout(() => {
+                hidePreviewAvatar(); 
+            }, 1500);
+        } else {
+            // ถ้าติด Cooldown แสดงข้อความเตือนสีแดง และยังไม่ปิดหน้าจอ
+            nameModalMsg.innerText = result.message; 
+            nameModalMsg.style.color = "#ff5252";
+            nameModalMsg.style.display = "block";
+        }
     } else {
-        nameModalMsg.innerText = result.message; 
-        nameModalMsg.style.color = "#ff5252";
-        nameModalMsg.style.display = "block";
+        // 🔴 2. ถ้าไม่ได้แก้ชื่อ หรือพิมพ์ชื่อเดิม ก็ปิดหน้าจอทันที
+        hidePreviewAvatar(); 
     }
 });
 
@@ -543,9 +541,16 @@ document.addEventListener('fullscreenchange', () => {
 
 let talkTimer = 0;
 let isTalking = false; 
+let lastFirebaseSync = 0; 
 
 renderer.setAnimationLoop(() => {
-    updateMyPositionToFirebase();
+    
+    // หน่วงเวลาส่งข้อมูลพิกัดขึ้น Firebase 1 ครั้งต่อวินาที
+    const nowSync = Date.now();
+    if (nowSync - lastFirebaseSync > 1000) {
+        updateMyPositionToFirebase();
+        lastFirebaseSync = nowSync;
+    }
 
     if (myPreviewAvatar) {
         const aspect = window.innerWidth / window.innerHeight;
@@ -636,7 +641,7 @@ const auraBtn = document.getElementById('preview-aura-btn');
 if (auraBtn) {
     auraBtn.addEventListener('click', () => {
         isPreviewingAura = !isPreviewingAura;
-        auraBtn.innerText = isPreviewingAura ? "🛑 ปิดพรีวิวออร่า" : "✨ พรีวิวร่างออร่า (จำลอง 100 บุญ)";
+        auraBtn.innerText = isPreviewingAura ? "🛑 ปิดพรีวิวออร่า" : "✨ พรีวิวร่างออร่า";
         auraBtn.style.background = isPreviewingAura ? "#ff5252" : "#ffd700";
         auraBtn.style.color = isPreviewingAura ? "#fff" : "#111";
         
@@ -667,70 +672,66 @@ const urlParams = new URLSearchParams(window.location.search);
 const refId = urlParams.get('ref'); 
 
 // ==========================================
-// 🔍 ระบบดึงคะแนนจาก Firebase พร้อมตัววินิจฉัย (Debug)
+// 🔍 ระบบดึงคะแนน Firebase + Client-Side Flash (จำลองผลลัพธ์ทุกวินาที)
 // ==========================================
 console.log("🔍 [Diagnostic] เริ่มเชื่อมต่อฐานข้อมูลแต้มบุญสำหรับ User ID:", userId);
 
 let myTotalMeditationMinutes = 0; 
-let displayMerit = "0.00"; // เก็บค่าทศนิยมเพื่อนำไปใช้แสดงผล
+let localTotalSeconds = 0; 
+let localSharePts = 0;
+let isDataLoaded = false;
 
 const myPlayerRef = ref(db, `players/${userId}`);
 onValue(myPlayerRef, (snapshot) => {
     const data = snapshot.val();
     
     if (!data) {
-        console.warn(`⚠️ [Diagnostic] ไม่พบข้อมูล... ระบบกำลังบังคับแสดงค่าเริ่มต้น`);
-    }
-
-    // 1. ดึงข้อมูลพื้นฐาน
-    const sharePts = Number(data?.sharePoints) || 0;
-    const hourPts = Number(data?.hourPoints) || 0;
-    const minPts = Number(data?.meditationMinutes) || 0;
-    
-    // 2. คำนวณนาทีรวมทั้งหมด (รองรับข้อมูลเก่าที่เคยเป็นชั่วโมง)
-    myTotalMeditationMinutes = (hourPts * 60) + minPts;
-
-    // 3. คำนวณแต้มบุญรวม (แชร์ + นาที) และทำทศนิยม 2 ตำแหน่ง (เช่น 1.02)
-    const calculatedMerit = sharePts + (myTotalMeditationMinutes / 60);
-    displayMerit = calculatedMerit.toFixed(2); 
-    myMeritPoints = calculatedMerit; // เก็บไว้เช็คร่างออร่า
-
-    const meritDisplay = document.getElementById('total-merit-display');
-    const shareDisplay = document.getElementById('share-merit-display');
-
-    if (meritDisplay) meritDisplay.innerText = `${displayMerit} บุญ`;
-    if (shareDisplay) shareDisplay.innerText = sharePts;
-
-    const navMeritBadge = document.getElementById('nav-merit-badge');
-    if (navMeritBadge) {
-        navMeritBadge.innerText = `✨ ${displayMerit} บุญ`;
-    }
-
-    if (!data) {
         set(myPlayerRef, {
-            meritPoints: 0,
-            sharePoints: 0,
-            hourPoints: 0,
-            meditationMinutes: 0
-        }).catch(err => console.error("❌ [Firebase Error] ไม่สามารถบันทึกค่าเริ่มต้นได้:", err));
+            meritPoints: 0, sharePoints: 0, hourPoints: 0, meditationMinutes: 0
+        }).catch(err => console.error("❌ [Firebase Error]", err));
+        return;
     }
+
+    localSharePts = Number(data.sharePoints) || 0;
+    const minPts = Number(data.meditationMinutes) || 0;
+    const hourPts = Number(data.hourPoints) || 0;
+    
+    myTotalMeditationMinutes = (hourPts * 60) + minPts;
+    const dbTotalSeconds = myTotalMeditationMinutes * 60;
+    
+    if (!isDataLoaded || Math.abs(localTotalSeconds - dbTotalSeconds) > 120) {
+        localTotalSeconds = dbTotalSeconds;
+        isDataLoaded = true;
+    }
+
+    const shareDisplay = document.getElementById('share-merit-display');
+    if (shareDisplay) shareDisplay.innerText = localSharePts;
 });
 
-// 🔴 ระบบแสดงผลเวลา HH:MM และทำเครื่องหมาย ':' กระพริบ
-let colonVisible = true;
+// 🔴 ระบบแฟลช: จำลองเวลาและแต้มบุญทุกวินาที
 setInterval(() => {
-    colonVisible = !colonVisible;
+    localTotalSeconds++; 
+    
+    const calculatedMerit = localSharePts + (localTotalSeconds / 3600);
+    myMeritPoints = calculatedMerit; 
+    
+    const meritDisplay = document.getElementById('total-merit-display');
+    const navMeritBadge = document.getElementById('nav-merit-badge');
+    
+    if (meritDisplay) meritDisplay.innerText = `${calculatedMerit.toFixed(4)} บุญ`; 
+    if (navMeritBadge) navMeritBadge.innerText = `✨ ${calculatedMerit.toFixed(2)} บุญ`; 
+    
     const hourDisplay = document.getElementById('hour-merit-display');
     if (hourDisplay) {
-        const hrs = Math.floor(myTotalMeditationMinutes / 60);
-        const mins = myTotalMeditationMinutes % 60;
+        const hrs = Math.floor(localTotalSeconds / 3600);
+        const mins = Math.floor((localTotalSeconds % 3600) / 60);
+        const secs = localTotalSeconds % 60;
         
         const hStr = String(hrs).padStart(2, '0');
         const mStr = String(mins).padStart(2, '0');
+        const sStr = String(secs).padStart(2, '0');
         
-        // ใช้ opacity:0 ตอนกระพริบ เพื่อป้องกันไม่ให้ตัวเลขขยับไปมา
-        const separator = colonVisible ? ':' : '<span style="opacity:0;">:</span>';
-        hourDisplay.innerHTML = `${hStr}${separator}${mStr}`;
+        hourDisplay.innerHTML = `${hStr}:${mStr}:<span style="color:#00ffcc;">${sStr}</span>`;
     }
 }, 1000);
 
@@ -748,18 +749,11 @@ if (refId && refId !== userId) {
 }
 
 // ==========================================
-// 🔴 ระบบสะสมเวลาปฏิบัติธรรม (อัปเดตทุก 1 นาที - ตัวจริง)
+// 🔴 ระบบสะสมเวลาเข้าใช้งานเว็บ (อัปเดตทุก 1 นาที)
 // ==========================================
 setInterval(() => {
-    // เช็คว่าอยู่ในลานธรรมและไม่ได้กำลังพรีวิวอวตารตั้งค่าชื่อ
-    if (activeModule === meditationModule && !myPreviewAvatar) {
-        
-        // เพิ่มจำนวนนาที +1 
-        // และเพิ่มแต้มบุญทีละสัดส่วน (1/60) บน Database อัตโนมัติ
-        update(ref(db, `players/${userId}`), {
-            meditationMinutes: increment(1),
-            meritPoints: increment(1 / 60) 
-        }).catch(err => console.error(err));
-        
-    }
-}, 60000); // 🔴 กลับมาเป็น 60,000 มิลลิวินาที (1 นาที) แล้วครับ
+    update(ref(db, `players/${userId}`), {
+        meditationMinutes: increment(1),
+        meritPoints: increment(1 / 60) 
+    }).catch(err => console.error("Firebase Update Error:", err));
+}, 60000);

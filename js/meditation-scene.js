@@ -199,6 +199,8 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         const totalGlobal = globalUsersCount + localBotCount + window.exhibitionTotalBots;
         const totalRoom = roomUsersCount + localBotCount;
         
+        console.log(`[Debug - HUD] อัปเดตยอดผู้ใช้งาน | บอทลานธรรม: ${localBotCount} | คนจริง: ${roomUsersCount} | รวมทั้งห้อง: ${totalRoom}`);
+
         const statsTexts = [
             `👁️ ผู้เข้าชมสะสม: ${allTimeVisitors.toLocaleString()} คน`,
             `🌐 รวมทั้งเว็บ และ แอพ: ${totalGlobal} คน`,
@@ -213,7 +215,10 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         }
 
         const rotatingEl = document.getElementById('rotating-global-stats');
-        if (!rotatingEl) return;
+        if (!rotatingEl) {
+            console.warn(`[Debug - HUD] ❌ หาแท็ก HTML id='rotating-global-stats' ไม่เจอ!`);
+            return;
+        }
 
         currentStatIndex = 2;
         rotatingEl.innerText = statsTexts[currentStatIndex];
@@ -244,11 +249,20 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     const botNamesList = ["กัลยาณมิตรใจดี", "ผู้แสวงบุญ", "คนรักสงบ", "ผู้ใฝ่ธรรม", "ศิษย์ตถาคต", "ผู้เบิกบาน", "ผู้เจริญในธรรม", "คนมีเมตตา"];
 
     function initFirebaseBots() {
+        console.log(`[Debug - Firebase] ⏳ กำลังเช็คข้อมูลบอทในห้อง: ${myRoomId}`);
         const botsRef = ref(db, `rooms/${myRoomId}/bots`);
-        get(botsRef).then((snapshot) => { if (!snapshot.exists()) generateInitialBotsToFirebase(); });
+        get(botsRef).then((snapshot) => { 
+            if (!snapshot.exists()) {
+                console.log(`[Debug - Firebase] ⚠️ ไม่พบบอทในห้องนี้ กำลังสร้างบอทใหม่...`);
+                generateInitialBotsToFirebase();
+            } else {
+                console.log(`[Debug - Firebase] ✅ พบบอทเดิมค้างอยู่ในห้อง จำนวน ${Object.keys(snapshot.val()).length} ตัว`);
+            }
+        }).catch(err => console.error(`[Debug - Firebase] ❌ Error การอ่านข้อมูล:`, err));
 
         onChildAdded(botsRef, (snapshot) => {
             const botId = snapshot.key; const data = snapshot.val();
+            console.log(`[Debug - Firebase] 📥 โหลดข้อมูลบอทสำเร็จ:`, botId, data);
             renderBot(botId, data);
         });
 
@@ -263,40 +277,119 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 }
                 seatingGroup.remove(activeBotsInScene[botId]);
                 delete activeBotsInScene[botId]; localBotCount--; updateServerStatusUI();
+                console.log(`[Debug - Scene] 🗑️ ลบบอท ${botId} ออกจากฉาก`);
             }
         });
     }
 
     function generateInitialBotsToFirebase() {
         const numBots = Math.floor(Math.random() * 4) + 3; 
+        console.log(`[Debug - Firebase] 🎲 สุ่มจำนวนบอทได้: ${numBots} ตัว`);
         const availableIndices = [...Array(cushionsList.length).keys()];
         
         for (let i = 0; i < numBots; i++) {
             if (availableIndices.length === 0) break;
             const cushionIdx = availableIndices.splice(Math.floor(Math.random() * availableIndices.length), 1)[0];
-            const botId = 'bot_' + i; const name = botNamesList[Math.floor(Math.random() * botNamesList.length)];
-            const tempAvatar = createMeditatorAvatar(name); const colors = tempAvatar.userData.customColors;
+            const botId = 'bot_' + i; 
+            const name = botNamesList[Math.floor(Math.random() * botNamesList.length)];
             
-            set(ref(db, `rooms/${myRoomId}/bots/${botId}`), { name: name, colors: colors, cushionIndex: cushionIdx, state: 'SIT' });
+            const colors = {
+                skin: Math.random() > 0.5 ? 0xffe0bd : 0xf1c27d, 
+                shirt: 0xffffff, 
+                pants: 0xffffff, 
+                gender: Math.random() > 0.5 ? 'M' : 'F'
+            };
+            
+            set(ref(db, `rooms/${myRoomId}/bots/${botId}`), { name: name, colors: colors, cushionIndex: cushionIdx, state: 'SIT' })
+                .then(() => console.log(`[Debug - Firebase] 💾 บันทึกบอท ${botId} ลง Firebase สำเร็จ`))
+                .catch(err => console.error(`[Debug - Firebase] ❌ บันทึกบอท ${botId} ล้มเหลว:`, err));
         }
     }
 
     function renderBot(botId, data) {
         if(!activeBotsInScene[botId]) {
-            localBotCount++; updateServerStatusUI();
-            const cushion = cushionsList[data.cushionIndex];
-            if(cushion) {
-                cushion.userData.isOccupied = true; cushion.userData.occupantName = data.name;
-                cushion.material.color.setHex(0x2a1610);
-                if (cushion.userData.holoBtn) cushion.userData.holoBtn.material.color.setHex(0xff3333);
-                
-                const botAvatar = createMeditatorAvatar(data.name, data.colors);
-                botAvatar.position.set(cushion.position.x, 0.05, cushion.position.z);
-                seatingGroup.add(botAvatar); activeBotsInScene[botId] = botAvatar;
+            console.log(`[Debug - Avatar] 🛠️ กำลังสร้าง 3D อวตารให้บอท: ${botId}`);
+            try {
+                const cushion = cushionsList[data.cushionIndex];
+                if(cushion) {
+                    cushion.userData.isOccupied = true; cushion.userData.occupantName = data.name;
+                    cushion.material.color.setHex(0x2a1610);
+                    if (cushion.userData.holoBtn) cushion.userData.holoBtn.material.color.setHex(0xff3333);
+                    
+                    const botAvatar = createMeditatorAvatar(data.name, data.colors);
+                    botAvatar.position.set(cushion.position.x, 0.05, cushion.position.z);
+                    seatingGroup.add(botAvatar); activeBotsInScene[botId] = botAvatar;
+                    
+                    localBotCount++; 
+                    console.log(`[Debug - Avatar] ✅ สร้างอวตารสำเร็จ! จำนวนบอทในฉากตอนนี้ = ${localBotCount}`);
+                    updateServerStatusUI();
+                } else {
+                    console.warn(`[Debug - Avatar] ❌ หาเบาะที่นั่ง index ${data.cushionIndex} ไม่เจอ`);
+                }
+                updateEngagingContext(myRoomId, Object.values(activeBotsInScene).map(b => b.userData.userName));
+            } catch (err) {
+                console.error(`[Debug - Avatar] ❌ Error ระหว่างสร้างอวตารให้บอท ${botId}:`, err);
             }
-            updateEngagingContext(myRoomId, Object.values(activeBotsInScene).map(b => b.userData.userName));
         }
     }
+
+    // ==========================================
+    // 🌟 ระบบบอทสุ่มกดแชทอิโมจิ (แสดงในโซนแชท)
+    // ==========================================
+    const botChatEmojis = ['🙏 สาธุ', '👍 ดีมากเลย', '💖 สุดยอดเลย'];
+    setInterval(() => {
+        if (!scene.visible) return;
+        const botIds = Object.keys(activeBotsInScene);
+        
+        // โอกาสที่บอทจะแชทในแต่ละรอบ 6 วินาที (สุ่มเจอค่อยพิมพ์)
+        if (botIds.length > 0 && Math.random() > 0.5) {
+            const randomBotId = botIds[Math.floor(Math.random() * botIds.length)];
+            const randomBot = activeBotsInScene[randomBotId];
+            const botName = randomBot.userData.userName || "กัลยาณมิตร";
+            const emoji = botChatEmojis[Math.floor(Math.random() * botChatEmojis.length)];
+            
+            const chatMaster = document.getElementById('chat-master-container');
+            const floatingContainer = document.getElementById('floating-reactions-container');
+            
+            if (chatMaster && floatingContainer) {
+                const msgDiv = document.createElement('div');
+                const nameColor = '#ff9800'; 
+                msgDiv.innerHTML = `<span>${emoji}</span><span style="color: ${nameColor}; font-weight: bold; margin-left: 8px; font-size: 13px;"> - ${botName} (ลานธรรม)</span>`;
+                
+                msgDiv.style.cssText = `
+                    background: rgba(0, 0, 0, 0.7); color: #fff; padding: 6px 14px;
+                    border-radius: 20px; border-left: 3px solid ${nameColor};
+                    font-family: 'Sarabun', sans-serif; font-size: 14px;
+                    text-shadow: 1px 1px 2px rgba(0,0,0,0.8); backdrop-filter: blur(4px);
+                    opacity: 0; transform: translateY(10px); transition: all 0.4s ease; align-self: flex-start;
+                    display: flex; align-items: center;
+                `;
+                
+                floatingContainer.appendChild(msgDiv);
+                
+                // แอนิเมชันให้ข้อความลอยขึ้นมา
+                requestAnimationFrame(() => {
+                    msgDiv.style.opacity = '1';
+                    msgDiv.style.transform = 'translateY(0px)';
+                    
+                    // จำกัดข้อความไม่ให้ล้นจอ
+                    if (floatingContainer.children.length > 6) {
+                        floatingContainer.removeChild(floatingContainer.children[0]);
+                    }
+                });
+
+                // ตั้งเวลาให้ข้อความหายไป
+                setTimeout(() => {
+                    if (msgDiv.parentNode) {
+                        msgDiv.style.opacity = '0';
+                        setTimeout(() => {
+                            if (msgDiv.parentNode) msgDiv.remove();
+                        }, 400);
+                    }
+                }, 30000);
+            }
+        }
+    }, 6000); // 🔴 จุดนี้แหละครับที่รอบที่แล้วผมเผลอตัดออกไป โค้ดเลยแจ้ง error missing )
 
     async function joinRoom() {
         const roomsRef = ref(db, 'rooms'); const snapshot = await get(roomsRef);
@@ -667,6 +760,10 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
     const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2();
 
     function goBackToStandby() {
+        // 🔴 เพิ่ม 2 บรรทัดนี้ เพื่อรีเซ็ตหน้าจอโฮโลแกรมให้เด้งเปิดตัวใหม่
+        hologramGroup.userData.spawnTime = Date.now(); 
+        hologramButtons.forEach(btn => btn.userData.isClicked = false); 
+        
         if (mySelectedCushion) {
             mySelectedCushion.userData.isMine = false; mySelectedCushion.userData.isOccupied = false;
             mySelectedCushion.material.color.setHex(0x3b2219); 
@@ -726,6 +823,11 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
                 
                 targetCush.userData.isOccupied = true; targetCush.userData.isMine = true;
                 targetCush.material.color.setHex(0x00ffcc); obj.material.color.setHex(0xffeb3b);
+                
+                // 🔴 เพิ่ม 2 บรรทัดนี้สำหรับแอนิเมชันปุ่มกระเพื่อมตอนทัช
+                obj.userData.isClicked = true;
+                obj.userData.clickTime = Date.now();
+                
                 mySelectedCushion = targetCush;
                 
                 const pos = new THREE.Vector3(); targetCush.getWorldPosition(pos);
@@ -831,6 +933,11 @@ export function setupMeditationScene(renderer, cssRenderer, db, currentUserName)
         if (scene.visible) {
             updateBuddhaEffects(); updateFireflies();
             Object.values(activeBotsInScene).forEach(bot => { if (bot.update) bot.update(); });
+            
+            // 🔴 แทรกโค้ดสั่งให้แอนิเมชันโฮโลแกรมทำงานตลอดเวลา
+            if (hologramGroup && hologramGroup.visible && hologramGroup.update) {
+                hologramGroup.update();
+            }
         }
 
         if (scene.visible) {

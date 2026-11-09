@@ -489,6 +489,25 @@
                 /* จำกัดความสูงของป้ายไม่ให้บังอวตาร */
             }
         }
+
+        /* ================================================== */
+        /* ปรับขนาดกล่องตั้งค่าเมื่อใช้งานหน้าจอแนวนอนที่มีความสูงน้อย */
+        /* ================================================== */
+        @media screen and (orientation: landscape) and (max-height: 750px) {
+            .ui-panel {
+                transform: scale(0.80);
+                /* ย่อขนาดกล่องลงเหลือ 80% */
+                transform-origin: center center;
+                /* ให้ย่อเข้าหาจุดกึ่งกลาง */
+                max-height: 100vh;
+                /* ยืดความสูงให้เต็มจอภาพ */
+            }
+
+            /* ลดความสูงของช่องข้อความแชร์ลงอีกนิด เพื่อประหยัดพื้นที่ */
+            #share-text-preview {
+                height: 50px !important;
+            }
+        }
     </style>
 </head>
 
@@ -601,12 +620,28 @@
         <div class="modal-split-layout">
             <div class="left-panel-container">
                 <div class="ui-panel">
-                    <h3
-                        style="margin: 0 0 15px 0; color: #ffdf80; text-align: center; font-size: 22px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">
-                        ⚙️ ตั้งค่าผู้ใช้งาน</h3>
+                    <!-- หัวข้อและปุ่มกลับหน้าหลัก -->
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3
+                            style="margin: 0; color: #ffdf80; font-size: 22px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">
+                            ⚙️ ตั้งค่าผู้ใช้งาน
+                        </h3>
+                        <button id="cancel-name-btn" class="ui-btn"
+                            style="background: #333; color: #fff; border: 1px solid #777; padding: 6px 12px; font-size: 14px; border-radius: 8px;">
+                            🏠 กลับหน้าหลัก
+                        </button>
+                    </div>
 
                     <div class="sec-box sec-share">
-                        <div class="sec-title" style="color: #4CAF50;">💖 1. แต้มบุญและออร่า</div>
+                        <!-- บรรทัดหัวข้อและปุ่มพรีวิวออร่า (อยู่บรรทัดเดียวกัน) -->
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <div class="sec-title" style="color: #4CAF50; margin-bottom: 0;">💖 1. แต้มบุญและออร่า</div>
+                            <button id="preview-aura-btn" class="ui-btn"
+                                style="background: #ffd700; color: #111; border: 1px solid #fff; padding: 4px 12px; font-size: 12px; border-radius: 15px;">✨
+                                พรีวิวร่างออร่า</button>
+                        </div>
 
                         <!-- กล่องแสดงสถานะแต้มแยกประเภท -->
                         <div
@@ -628,10 +663,7 @@
                             </div>
                         </div>
 
-                        <!-- ปุ่มพรีวิวออร่า -->
-                        <button id="preview-aura-btn" class="ui-btn"
-                            style="width: 100%; background: #ffd700; color: #111; margin-bottom: 10px; border: 2px solid #fff;">✨
-                            พรีวิวร่างออร่า (จำลอง 100 บุญ)</button>
+
 
                         <div style="display: flex; gap: 6px;">
                             <input type="hidden" id="share-link-input" value="กำลังโหลดลิงก์...">
@@ -652,12 +684,8 @@
                                 style="font-size: 11px; color: #ccc;">(1 ครั้ง/วัน)</span></div>
                         <p id="name-modal-msg"
                             style="font-size: 13px; font-weight: bold; display: none; margin: 0 0 6px 0;"></p>
-                        <div style="display: flex; gap: 6px;">
-                            <input type="text" id="new-name-input" class="ui-input" maxlength="15"
-                                placeholder="กรอกชื่อใหม่..." style="flex: 1; text-align: center;">
-                            <button id="confirm-name-btn" class="ui-btn" style="background: #2196F3; color: white;">💾
-                                บันทึกชื่อ</button>
-                        </div>
+                        <input type="text" id="new-name-input" class="ui-input" maxlength="15"
+                            placeholder="กรอกชื่อใหม่..." style="width: 100%; text-align: center;">
                     </div>
 
                     <div class="sec-box sec-avatar">
@@ -673,9 +701,7 @@
                         </div>
                     </div>
 
-                    <button id="cancel-name-btn" class="ui-btn"
-                        style="width: 100%; background: #222; color: white; border: 1px solid #555; margin-top: 5px;">❌
-                        ปิดหน้าต่าง</button>
+
                 </div>
             </div>
             <!-- พื้นที่สำหรับคลิกหมุนอวตาร -->
