@@ -11,11 +11,12 @@ import { setupRealmScene } from './realm-scene.js';
 import { initEngagingSystem, updateChatUserName } from './engaging.js';
 import { loadMyAvatarColors, generateRandomColors, updateSharePreview, initShareSystem } from './setting.js';
 import { initIDPS, changeUserName } from './idps.js';
+// 🔴 นำเข้าฟังก์ชันสร้างหิ่งห้อย
+import { createFireflies, updateFireflies } from './fireflies.js';
 
 const { userId, userName, channelTag } = initIDPS("กัลยาณมิตร");
 let currentUserName = userName;
 
-// 🔴 อัปเดตชื่อ และแต้มบุญ บนปุ่มโปรไฟล์หลัก
 function updateUserProfileBtn(isRealmMode = false) {
     const userProfileBtn = document.getElementById('user-profile-btn'); 
     const nameSpan = document.getElementById('nav-user-name');
@@ -23,8 +24,6 @@ function updateUserProfileBtn(isRealmMode = false) {
 
     if (nameSpan) {
         nameSpan.innerText = currentUserName;
-    } else {
-        console.warn("⚠️ [Diagnostic] ไม่พบแท็ก <span id='nav-user-name'> ในหน้า HTML");
     }
 
     if (userProfileBtn) {
@@ -35,11 +34,8 @@ function updateUserProfileBtn(isRealmMode = false) {
             userProfileBtn.style.pointerEvents = 'auto'; 
             if (settingsIcon) settingsIcon.style.display = 'inline';
         }
-    } else {
-        console.warn("⚠️ [Diagnostic] ไม่พบแท็ก <button id='user-profile-btn'> ในหน้า HTML");
     }
 }
-// เรียกใช้งานครั้งแรกหลังโหลด
 setTimeout(() => updateUserProfileBtn(), 500); 
 
 const otherPlayers = {}; 
@@ -49,9 +45,6 @@ let myOrbColor = 0x00e5ff;
 let myMeritPoints = 0; 
 let isPreviewingAura = false; 
 
-// ==========================================
-// จัดการข้อมูลอวตารส่วนตัว (โหลดจาก setting.js)
-// ==========================================
 let myAvatarColors = loadMyAvatarColors();
 
 const nameModal = document.getElementById('name-change-modal');
@@ -59,16 +52,15 @@ const newNameInput = document.getElementById('new-name-input');
 const cancelNameBtn = document.getElementById('cancel-name-btn');
 const nameModalMsg = document.getElementById('name-modal-msg');
 
-// ==========================================
-// 🔴 เตรียมความพร้อมสำหรับฉากตั้งค่า (Preview Scene)
-// ==========================================
 const previewScene = new THREE.Scene();
 const previewCamera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
 previewCamera.position.set(0, 0, 0);
 
 let myPreviewAvatar = null; 
 let previewLight = null; 
-let previewDarkBG = null; 
+let previewFloor = null; 
+let previewGroundFog = null; // 🔴 ตัวแปรเก็บหมอกหน้าตั้งค่า
+let previewFireflies = null; // 🔴 ตัวแปรเก็บหิ่งห้อยหน้าตั้งค่า
 let isDraggingAvatar = false;
 let previousMouseX = 0;
 let manualRotationOffset = 0; 
@@ -119,36 +111,82 @@ function showPreviewAvatar() {
 
     greetingStartTime = Date.now();
     
-    previewLight = new THREE.Group(); 
-    const pLight = new THREE.PointLight(0xffffff, 3.5, 10); pLight.position.set(0, 0.5, 0); 
-    const aLight = new THREE.AmbientLight(0xffffff, 1.2); 
-    const rimLightBlue = new THREE.PointLight(0x00e5ff, 5.0, 5); rimLightBlue.position.set(1.5, 0.5, -2.5); 
-    const rimLightOrange = new THREE.PointLight(0xff9800, 5.0, 5); rimLightOrange.position.set(-1.5, -0.2, -2.5); 
-    previewLight.add(pLight, aLight, rimLightBlue, rimLightOrange);
-    
-    const bgGeo = new THREE.PlaneGeometry(25, 25); 
-    const bgMat = new THREE.ShaderMaterial({
-        uniforms: { time: { value: 0.0 } },
-        vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-        fragmentShader: `
-            uniform float time; varying vec2 vUv;
-            void main() {
-                float dist = distance(vUv, vec2(0.5, 0.5));
-                float aura = smoothstep(0.4, 0.0, dist); 
-                float pulse = (sin(time * 2.5) * 0.5) + 0.5; 
-                float intensity = 0.5 + (pulse * 0.4); 
-                vec3 edgeColor = vec3(0.01, 0.01, 0.02);
-                vec3 centerColor = vec3(0.0, 0.6, 0.8); 
-                vec3 finalColor = mix(edgeColor, centerColor, aura * intensity);
-                gl_FragColor = vec4(finalColor, 1.0); 
-            }
-        `,
-        depthWrite: true 
+    // ==========================================
+    // 🌿 คำนวณเวลาจริงแบบเดียวกับลานธรรม
+    // ==========================================
+    const currentHour = new Date().getHours();
+    const isNight = currentHour >= 18 || currentHour < 6; 
+
+    // พื้นหลังและหมอกตามเวลา
+    const texLoader = new THREE.TextureLoader();
+    texLoader.load('textures/trees.jpg', (texture) => {
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        previewScene.background = texture;
+        previewScene.environment = texture;
+        // 🔴 หรี่แสงพื้นหลังถ้าเป็นกลางคืน
+        if (previewScene.backgroundIntensity !== undefined) {
+            previewScene.backgroundIntensity = isNight ? 0.15 : 1.0;
+        }
     });
-    previewDarkBG = new THREE.Mesh(bgGeo, bgMat);
-    previewDarkBG.position.set(0, 0, -3.0); 
     
-    previewScene.add(previewDarkBG);
+    previewScene.fog = new THREE.FogExp2(isNight ? 0x08152b : 0xa3c4d1, isNight ? 0.05 : 0.015);
+
+    // ==========================================
+    // 🌿 จัดแสงบรรยากาศ กลางวัน/กลางคืน
+    // ==========================================
+    previewLight = new THREE.Group(); 
+    const aLight = new THREE.AmbientLight(isNight ? 0x2a3b5c : 0xffffff, isNight ? 0.6 : 0.8);
+    const pLight = new THREE.PointLight(0xffcc80, isNight ? 1.0 : 1.5, 15);
+    pLight.position.set(0, 4, -2); 
+    const moonLight = new THREE.DirectionalLight(0x4a8df8, isNight ? 1.2 : 0.0);
+    moonLight.position.set(5, 10, 5);
+    
+    // ไฟส่องหน้า (เพื่อความชัดเจนตอนตั้งค่า)
+    const faceLight = new THREE.DirectionalLight(0xffffff, isNight ? 0.8 : 1.2);
+    faceLight.position.set(0, 1, 3);
+    
+    previewLight.add(aLight, pLight, moonLight, faceLight);
+    
+    // ==========================================
+    // 🍃 พื้นดินลานธรรม + หมอกเอื่อยๆ
+    // ==========================================
+    const floorCanvas = document.createElement('canvas');
+    floorCanvas.width = 1024; floorCanvas.height = 1024;
+    const floorCtx = floorCanvas.getContext('2d');
+    const floorGrad = floorCtx.createRadialGradient(512, 512, 200, 512, 512, 500);
+    floorGrad.addColorStop(0, '#4a2e18');   
+    floorGrad.addColorStop(0.6, '#2e1c0e'); 
+    floorGrad.addColorStop(1, '#050301');   
+    floorCtx.fillStyle = floorGrad; floorCtx.fillRect(0, 0, 1024, 1024);
+    floorCtx.fillStyle = 'rgba(0,0,0,0.15)';
+    for(let i=0; i<15000; i++) { floorCtx.fillRect(Math.random()*1024, Math.random()*1024, 2, 2); }
+    
+    const floorTexture = new THREE.CanvasTexture(floorCanvas);
+    floorTexture.colorSpace = THREE.SRGBColorSpace;
+
+    previewFloor = new THREE.Mesh(
+        new THREE.PlaneGeometry(25, 25), 
+        new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.9 })
+    );
+    previewFloor.rotation.x = -Math.PI / 2;
+    previewFloor.position.y = avatarY - 0.05; 
+    
+    previewScene.add(previewFloor);
+
+    // 🔴 ดึงหมอกของลานธรรมมาใส่ในหน้าพรีวิวด้วย
+    if (window.groundFogMat) {
+        previewGroundFog = new THREE.Mesh(new THREE.PlaneGeometry(25, 25), window.groundFogMat);
+        previewGroundFog.rotation.x = -Math.PI / 2;
+        previewGroundFog.position.y = avatarY + 0.1; 
+        previewScene.add(previewGroundFog);
+    }
+
+    // 🔴 ดึงหิ่งห้อยมาใส่ (โชว์เฉพาะกลางคืน)
+    previewFireflies = createFireflies();
+    previewFireflies.visible = isNight;
+    previewScene.add(previewFireflies);
+
     previewScene.add(myPreviewAvatar);
     previewScene.add(previewLight);
 
@@ -158,11 +196,19 @@ function showPreviewAvatar() {
 function hidePreviewAvatar() {
     if (myPreviewAvatar) previewScene.remove(myPreviewAvatar);
     if (previewLight) previewScene.remove(previewLight);
-    if (previewDarkBG) previewScene.remove(previewDarkBG); 
+    if (previewFloor) previewScene.remove(previewFloor); 
+    if (previewGroundFog) previewScene.remove(previewGroundFog); // 🔴 ลบหมอก
+    if (previewFireflies) previewScene.remove(previewFireflies); // 🔴 ลบหิ่งห้อย
     
     myPreviewAvatar = null;
     previewLight = null;
-    previewDarkBG = null;
+    previewFloor = null;
+    previewGroundFog = null;
+    previewFireflies = null;
+    
+    previewScene.background = null;
+    previewScene.environment = null;
+    previewScene.fog = null;
     
     const cssContainer = document.getElementById('css-container');
     if (cssContainer) cssContainer.style.display = 'block';
@@ -183,7 +229,6 @@ function hidePreviewAvatar() {
     });
 }
 
-// 🔴 แก้ไข event listener ให้ใช้ ID ใหม่
 const profileBtn = document.getElementById('user-profile-btn');
 if(profileBtn) {
     profileBtn.addEventListener('click', () => {
@@ -209,7 +254,6 @@ if(profileBtn) {
 }
 
 function generateRandomAppearance(targetGender) {
-    // 🔴 1. ใช้ฟังก์ชันสุ่มสีจาก setting.js แทนโค้ดยาวๆ เดิม
     myAvatarColors = generateRandomColors(targetGender); 
     
     if(myPreviewAvatar) {
@@ -234,8 +278,6 @@ function generateRandomAppearance(targetGender) {
     }
     
     updateMyPositionToFirebase(); 
-    
-    // 🔴 2. อัปเดตฟังก์ชันพรีวิวแชร์ให้ส่งค่าครบตามรูปแบบใหม่ใน setting.js
     updateSharePreview(currentUserName, userId, myAvatarColors.gender, false);
 }
 
@@ -249,38 +291,31 @@ cancelNameBtn.addEventListener('click', () => {
     const newName = newNameInput.value.trim();
     const rawCurrentName = currentUserName.replace(channelTag, '');
     
-    // 🔴 1. เช็คว่ามีการพิมพ์ชื่อใหม่ และไม่ซ้ำกับชื่อเดิมหรือไม่
     if (newName && newName !== rawCurrentName) {
-        // ดำเนินการบันทึกชื่อใหม่
         const result = changeUserName(newName, channelTag);
         
         if (result.success) {
             currentUserName = result.newName;
             updateUserProfileBtn(activeModule === realmModule);
             
-            // แสดงข้อความสำเร็จสีเขียว
             nameModalMsg.innerText = result.message; 
             nameModalMsg.style.color = "#00ffcc";
             nameModalMsg.style.display = "block";
             
-            // อัปเดตเวลาล่าสุด ป้องกันการสแปมเปลี่ยนชื่อ
             localStorage.setItem('app_last_name_change_time', Date.now());
             
             updateMyPositionToFirebase(); 
             updateChatUserName(currentUserName); 
             
-            // หน่วงเวลา 1.5 วินาทีให้ผู้ใช้เห็นข้อความสำเร็จ ก่อนปิดหน้าจอ
             setTimeout(() => {
                 hidePreviewAvatar(); 
             }, 1500);
         } else {
-            // ถ้าติด Cooldown แสดงข้อความเตือนสีแดง และยังไม่ปิดหน้าจอ
             nameModalMsg.innerText = result.message; 
             nameModalMsg.style.color = "#ff5252";
             nameModalMsg.style.display = "block";
         }
     } else {
-        // 🔴 2. ถ้าไม่ได้แก้ชื่อ หรือพิมพ์ชื่อเดิม ก็ปิดหน้าจอทันที
         hidePreviewAvatar(); 
     }
 });
@@ -545,7 +580,6 @@ let lastFirebaseSync = 0;
 
 renderer.setAnimationLoop(() => {
     
-    // หน่วงเวลาส่งข้อมูลพิกัดขึ้น Firebase 1 ครั้งต่อวินาที
     const nowSync = Date.now();
     if (nowSync - lastFirebaseSync > 1000) {
         updateMyPositionToFirebase();
@@ -597,9 +631,11 @@ renderer.setAnimationLoop(() => {
             }
         });
 
-        if (previewDarkBG && previewDarkBG.material.uniforms) {
-            previewDarkBG.material.uniforms.time.value += 0.015; 
+        // 🔴 สั่งอัปเดตแอนิเมชันของหมอกและหิ่งห้อยตอนอยู่ในหน้าตั้งค่า
+        if (window.groundFogMat) {
+            window.groundFogMat.uniforms.time.value += 0.015;
         }
+        updateFireflies();
 
         renderer.render(previewScene, previewCamera);
 
@@ -628,7 +664,7 @@ window.addEventListener('resize', () => {
 });
 
 // ==========================================
-// เริ่มระบบปุ่มแชร์และคัดลอกไวรัล (ดึงจาก setting.js)
+// เริ่มระบบปุ่มแชร์และคัดลอกไวรัล 
 // ==========================================
 initShareSystem(
     () => currentUserName,
@@ -636,7 +672,6 @@ initShareSystem(
     () => myAvatarColors.gender
 );
 
-// 🔴 ปุ่มเปิด-ปิด พรีวิวออร่า
 const auraBtn = document.getElementById('preview-aura-btn');
 if (auraBtn) {
     auraBtn.addEventListener('click', () => {
@@ -672,7 +707,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const refId = urlParams.get('ref'); 
 
 // ==========================================
-// 🔍 ระบบดึงคะแนน Firebase + Client-Side Flash (จำลองผลลัพธ์ทุกวินาที)
+// 🔍 ระบบดึงคะแนน Firebase + Client-Side Flash
 // ==========================================
 console.log("🔍 [Diagnostic] เริ่มเชื่อมต่อฐานข้อมูลแต้มบุญสำหรับ User ID:", userId);
 
@@ -708,7 +743,6 @@ onValue(myPlayerRef, (snapshot) => {
     if (shareDisplay) shareDisplay.innerText = localSharePts;
 });
 
-// 🔴 ระบบแฟลช: จำลองเวลาและแต้มบุญทุกวินาที
 setInterval(() => {
     localTotalSeconds++; 
     
@@ -748,9 +782,6 @@ if (refId && refId !== userId) {
     }
 }
 
-// ==========================================
-// 🔴 ระบบสะสมเวลาเข้าใช้งานเว็บ (อัปเดตทุก 1 นาที)
-// ==========================================
 setInterval(() => {
     update(ref(db, `players/${userId}`), {
         meditationMinutes: increment(1),
